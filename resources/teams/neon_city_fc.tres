@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="TeamData" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/team_data.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/resources/player_stats.gd" id="2"]
+[ext_resource type="Resource" path="res://resources/traits/super_tiro.tres" id="3"]
+
+[sub_resource type="Resource" id="Resource_star"]
+script = ExtResource("2")
+player_name = "Rex Voltaje"
+field_position = 3
+speed = 74
+jump = 66
+max_stamina = 82
+shot_power = 84
+passing = 70
+tackling = 42
+technique = 78
+special_trait = ExtResource("3")
+
+[resource]
+script = ExtResource("1")
+team_name = "Neón City FC"
+short_name = "NEO"
+primary_color = Color(0, 0.9, 1, 1)
+secondary_color = Color(0.08, 0.08, 0.1, 1)
+formation = "4-3-3"
+base_overall = 72
+star_player = SubResource("Resource_star")
+roster_names = Array[String](["Gero Lumen", "Charly Vatio", "Andrés Croma", "Pol Estrobo", "Leo Plasma", "Isco Fotón", "Mario Flux", "Dani Halógeno", "Bruno Fase", "Óliver Nix"])

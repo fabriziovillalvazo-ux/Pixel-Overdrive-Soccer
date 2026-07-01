@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="TeamData" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/team_data.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/resources/player_stats.gd" id="2"]
+[ext_resource type="Resource" path="res://resources/traits/super_tiro.tres" id="3"]
+
+[sub_resource type="Resource" id="Resource_star"]
+script = ExtResource("2")
+player_name = "Marco Bláster"
+field_position = 2
+speed = 66
+jump = 62
+max_stamina = 86
+shot_power = 82
+passing = 84
+tackling = 58
+technique = 86
+special_trait = ExtResource("3")
+
+[resource]
+script = ExtResource("1")
+team_name = "Inter Cartucho"
+short_name = "CAR"
+primary_color = Color(0.55, 0.1, 0.2, 1)
+secondary_color = Color(0.15, 0.25, 0.6, 1)
+formation = "4-4-2"
+base_overall = 75
+star_player = SubResource("Resource_star")
+roster_names = Array[String](["Argi Consola", "Basilio Pin", "Celso Ranura", "Dorio Casete", "Elio Memoria", "Fausto Botón", "Guido Mando", "Horacio Clave", "Ivo Cable", "Julen Adaptador"])

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="TraitData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/trait_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+trait_name = "Súper Salto"
+description = "Dueño del juego aéreo: la potencia de salto se multiplica. Gana casi cualquier balón dividido por alto."
+affected_stat = &"jump"
+multiplier = 1.25

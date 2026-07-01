@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="TeamData" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/team_data.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/resources/player_stats.gd" id="2"]
+[ext_resource type="Resource" path="res://resources/traits/super_velocidad.tres" id="3"]
+
+[sub_resource type="Resource" id="Resource_star"]
+script = ExtResource("2")
+player_name = "Nino Turbo"
+field_position = 3
+speed = 88
+jump = 55
+max_stamina = 83
+shot_power = 68
+passing = 64
+tackling = 36
+technique = 76
+special_trait = ExtResource("3")
+
+[resource]
+script = ExtResource("1")
+team_name = "Rayo Chiptune"
+short_name = "CHI"
+primary_color = Color(0.98, 0.85, 0.1, 1)
+secondary_color = Color(0.1, 0.1, 0.1, 1)
+formation = "4-3-3"
+base_overall = 73
+star_player = SubResource("Resource_star")
+roster_names = Array[String](["Aldo Sintes", "Bruno Compás", "Coque Onda", "Dino Acorde", "Ezio Tono", "Fito Escala", "Gali Ritmo", "Hano Eco", "Iggy Vibrato", "Juno Tempo"])

@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="TeamData" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/team_data.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/resources/player_stats.gd" id="2"]
+[ext_resource type="Resource" path="res://resources/traits/super_velocidad.tres" id="3"]
+
+[sub_resource type="Resource" id="Resource_star"]
+script = ExtResource("2")
+player_name = "Bugsy Rayo"
+field_position = 2
+speed = 82
+jump = 58
+max_stamina = 90
+shot_power = 64
+passing = 80
+tackling = 55
+technique = 82
+special_trait = ExtResource("3")
+
+[resource]
+script = ExtResource("1")
+team_name = "Sporting Glitch"
+short_name = "GLI"
+primary_color = Color(0.15, 0.7, 0.3, 1)
+secondary_color = Color(0.5, 0.2, 0.65, 1)
+formation = "4-4-2"
+base_overall = 70
+star_player = SubResource("Resource_star")
+roster_names = Array[String](["Otto Parche", "Milo Estática", "Ciro Reinicio", "Bruno Ruido", "Saúl Chispa", "Rubén Corte", "Galo Fractal", "Edu Píxel", "Yago Duende", "Tomé Arcade"])

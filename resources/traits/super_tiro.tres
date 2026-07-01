@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="TraitData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/trait_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+trait_name = "Súper Tiro"
+description = "Disparos devastadores: la potencia de tiro se multiplica. El balón sale con estela y sacude la red."
+affected_stat = &"shot_power"
+multiplier = 1.25
