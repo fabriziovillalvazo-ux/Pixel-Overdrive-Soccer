@@ -16,7 +16,7 @@
 | **Género** | Fútbol arcade con capa de simulación táctica |
 | **Cámara** | Lateral clásica 2D, emulando retransmisión de TV (estilo FIFA clásicos) |
 | **Controles** | Exclusivamente **teclado + ratón** (WASD + apuntado con cursor) |
-| **Modos** | Solo partidas locales **Jugador vs IA enemiga**. Sin online, sin multijugador local |
+| **Modos** | Amistoso, **Liga Overdrive** (14 jornadas) y **Copa KO** — siempre partidas locales **Jugador vs IA enemiga**. Sin online, sin multijugador local |
 | **Contenido** | Liga Overdrive: 8 equipos ficticios con jugadores y stats inventados |
 | **Estética** | Pixel art "18 bits": más detalle que los 16 bits puros, animación expresiva, iluminación 2D moderna |
 
@@ -105,8 +105,8 @@ la del cursor respecto al jugador. Mapa definido en `project.godot`:
 
 `scripts/systems/match_rules.gd` (`MatchRules`):
 
-- 2 partes de duración real configurable (5 min por defecto), reloj presentado
-  como 45' escalados.
+- 2 partes de **5 minutos reales** cada una (decisión registrada; el balance
+  de estamina asume esta duración), reloj presentado como 45' escalados.
 - Gol, saque de banda, córner y saque de puerta detectados por posición del
   balón respecto a los límites del campo.
 - **Saques arcade instantáneos:** el balón se coloca en el punto de saque y el
@@ -135,9 +135,14 @@ Umbrales (exportados, ajustables desde el inspector): `severidad ≥ 1` falta,
 señales (`foul_committed`, `card_shown`) que consumen el árbitro visual, el
 HUD y el audio.
 
-**Consecuencias en juego:** la falta devuelve la posesión a la víctima en el
-punto de la infracción (libre arcade, sin barreras ni pausa); la roja expulsa
-al jugador del campo y su equipo sigue con uno menos el resto del partido.
+**Consecuencias en juego (decisión registrada: libres + penaltis, hito M3):**
+- **Libre directo** con pausa breve, barrera de la IA y tiro apuntado con el
+  ratón (mismo esquema de carga de potencia).
+- **Penalti** por falta dentro del área: duelo tirador vs portero (el portero
+  IA elige lado según su stat de salto).
+- La **roja** expulsa al jugador del campo y su equipo sigue con uno menos.
+- *Comportamiento provisional en M2:* la víctima recupera la posesión al
+  instante en el punto de la falta, sin pausa.
 
 ### 5.3 Estamina
 
@@ -203,8 +208,10 @@ se lee del `TacticsManager` del equipo, así el cambio de táctica del rival se
 percibe de inmediato. Los compañeros no controlados del jugador usan la misma
 IA con la táctica propia.
 
-Dificultad (hito M3): escala con el tiempo de reacción y el error de pase de
-la IA, nunca inflando stats (la IA juega con las mismas cartas).
+**Dificultad (decisión registrada): 3 niveles** — Fácil / Normal / Difícil —
+escalando el tiempo de reacción y el error de pase de la IA, nunca inflando
+stats (la IA juega con las mismas cartas). Selección en el menú previo al
+partido (hito M3).
 
 ---
 
@@ -228,6 +235,16 @@ manteniendo los datos compactos.
 
 Cada equipo es un `TeamData` en `resources/teams/*.tres` con su estrella
 definida a mano (stats completos + referencia a su Trait).
+
+### 7.1 Modos de juego (decisión registrada)
+
+- **Amistoso:** elige tu equipo y el rival; sin persistencia.
+- **Liga Overdrive:** temporada de 14 jornadas (ida y vuelta contra los otros
+  7 equipos) con tabla de clasificación; los partidos entre equipos IA se
+  simulan por stats. Guardado de la temporada en curso.
+- **Copa Overdrive:** torneo KO de 8 equipos a partido único (cuartos,
+  semifinal y final); el empate se resuelve con prórroga corta y penaltis.
+- Todo es local Jugador vs IA: sin online ni multijugador local, por diseño.
 
 ---
 
@@ -326,6 +343,6 @@ potencia efectiva del tiro (los Súper Tiros suenan a cañonazo).
 |---|---|---|
 | **M1 — Esqueleto** | Proyecto Godot 4, arquitectura, datos de la liga, GDD | ✅ este commit |
 | **M2 — Balón y acciones** | 11 vs 11 en campo, posesión, pase/tiro/centro con carga, saques, faltas y expulsiones en juego, IA funcional con entrenador virtual | ✅ |
-| **M3 — IA fina y reglas** | Marcajes y coberturas, porteros con paradas por stats, niveles de dificultad, cambio de campo al descanso | ⬜ |
-| **M4 — Presentación** | Sprites Aseprite, animaciones, luces, menú de selección, audio | ⬜ |
+| **M3 — IA fina y reglas** | Libres directos con barrera y penaltis, marcajes y coberturas, porteros con paradas por stats, 3 niveles de dificultad, cambio de campo al descanso | ⬜ |
+| **M4 — Modos y presentación** | Liga Overdrive (14 jornadas) y Copa KO con guardado, menú de selección de equipo, sprites Aseprite, animaciones, luces, audio | ⬜ |
 | **M5 — Pulido** | Balance de stats/Traits, repeticiones de gol, export final | ⬜ |
