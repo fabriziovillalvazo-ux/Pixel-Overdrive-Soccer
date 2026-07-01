@@ -7,20 +7,12 @@ extends RefCounted
 ## del equipo; el resto de la plantilla se crea proceduralmente con los
 ## nombres ficticios de `roster_names` y stats alrededor de `base_overall`,
 ## sesgados por posición. Así los archivos de datos se mantienen compactos.
+##
+## El orden del array devuelto coincide 1:1 con Formations.field_slots(),
+## de modo que el índice de cada jugador es también su hueco en el campo.
 
-const SQUAD_SIZE := 11
-## Posiciones para un 11 inicial (la formación concreta ajusta el posicionamiento).
-const DEFAULT_LAYOUT: Array[PlayerStats.FieldPosition] = [
-	PlayerStats.FieldPosition.POR,
-	PlayerStats.FieldPosition.DEF, PlayerStats.FieldPosition.DEF,
-	PlayerStats.FieldPosition.DEF, PlayerStats.FieldPosition.DEF,
-	PlayerStats.FieldPosition.MED, PlayerStats.FieldPosition.MED,
-	PlayerStats.FieldPosition.MED, PlayerStats.FieldPosition.MED,
-	PlayerStats.FieldPosition.DEL, PlayerStats.FieldPosition.DEL,
-]
-
-## Devuelve un Array[PlayerStats] de 11 jugadores, con la estrella incluida
-## en el hueco que corresponde a su posición.
+## Devuelve un Array[PlayerStats] de 11 jugadores según la formación del
+## equipo, con la estrella incluida en el hueco de su posición.
 static func build_squad(team: TeamData, rng: RandomNumberGenerator = null) -> Array[PlayerStats]:
 	if rng == null:
 		rng = RandomNumberGenerator.new()
@@ -31,7 +23,7 @@ static func build_squad(team: TeamData, rng: RandomNumberGenerator = null) -> Ar
 	var star_placed := false
 	var name_index := 0
 
-	for layout_position in DEFAULT_LAYOUT:
+	for layout_position in Formations.layout(team.formation):
 		if not star_placed and team.star_player != null \
 				and team.star_player.field_position == layout_position:
 			squad.append(team.star_player)

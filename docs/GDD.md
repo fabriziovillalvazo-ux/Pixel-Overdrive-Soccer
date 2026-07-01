@@ -91,8 +91,9 @@ la del cursor respecto al jugador. Mapa definido en `project.godot`:
 | **1 / 2 / 3** | Táctica: Ofensiva / Balanceada / Defensiva | ídem |
 | **Esc** | Pausa | Pausa |
 
-- **Potencia por mantenimiento:** mantener pulsado el clic carga la potencia
-  del pase/tiro (hito M2); un toque corto es un pase suave.
+- **Potencia por mantenimiento:** mantener pulsada la acción carga la potencia
+  del pase/tiro (de 40% a 100% en 0,8 s); un toque corto es un pase suave. El
+  indicador de apuntado del jugador controlado crece con la carga.
 - No hay soporte de mando por diseño: el apuntado con ratón es el corazón del
   esquema de control.
 
@@ -108,6 +109,9 @@ la del cursor respecto al jugador. Mapa definido en `project.godot`:
   como 45' escalados.
 - Gol, saque de banda, córner y saque de puerta detectados por posición del
   balón respecto a los límites del campo.
+- **Saques arcade instantáneos:** el balón se coloca en el punto de saque y el
+  jugador más cercano del equipo beneficiado recibe la posesión al momento,
+  sin cinemáticas ni pausas (pilar nº 1: ritmo).
 - **`OFFSIDE_ENABLED := false`** — constante documental. **No existe la regla
   de fuera de juego.** Es una decisión de diseño intencional (pilar nº 1):
   habilita desmarques profundos constantes y ritmo arcade. `is_offside()`
@@ -130,6 +134,10 @@ Umbrales (exportados, ajustables desde el inspector): `severidad ≥ 1` falta,
 `≥ 2` amarilla, `≥ 3,5` roja directa. Doble amarilla = roja. El sistema emite
 señales (`foul_committed`, `card_shown`) que consumen el árbitro visual, el
 HUD y el audio.
+
+**Consecuencias en juego:** la falta devuelve la posesión a la víctima en el
+punto de la infracción (libre arcade, sin barreras ni pausa); la roja expulsa
+al jugador del campo y su equipo sigue con uno menos el resto del partido.
 
 ### 5.3 Estamina
 
@@ -317,7 +325,7 @@ potencia efectiva del tiro (los Súper Tiros suenan a cañonazo).
 | Hito | Contenido | Estado |
 |---|---|---|
 | **M1 — Esqueleto** | Proyecto Godot 4, arquitectura, datos de la liga, GDD | ✅ este commit |
-| **M2 — Balón y acciones** | Posesión, pase/tiro/centro con carga, saques, faltas en juego | ⬜ |
-| **M3 — IA completa** | 11 vs 11, marcajes, entrenador virtual, dificultades | ⬜ |
+| **M2 — Balón y acciones** | 11 vs 11 en campo, posesión, pase/tiro/centro con carga, saques, faltas y expulsiones en juego, IA funcional con entrenador virtual | ✅ |
+| **M3 — IA fina y reglas** | Marcajes y coberturas, porteros con paradas por stats, niveles de dificultad, cambio de campo al descanso | ⬜ |
 | **M4 — Presentación** | Sprites Aseprite, animaciones, luces, menú de selección, audio | ⬜ |
 | **M5 — Pulido** | Balance de stats/Traits, repeticiones de gol, export final | ⬜ |

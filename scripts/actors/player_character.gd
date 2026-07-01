@@ -3,35 +3,50 @@ extends CharacterBody2D
 
 ## Jugador de campo (controlado por el usuario o por la IA).
 ##
-## Controles (solo teclado + ratón, ver GDD sección 5):
+## Controles (solo teclado + ratón, ver GDD sección 4):
 ##   - WASD: movimiento.  Shift: sprint (consume estamina).
 ##   - El RATÓN apunta: la dirección de pase/centro/tiro es hacia el cursor.
 ##   - Clic izquierdo: pase raso (con balón) / entrada normal (sin balón).
 ##   - Clic derecho: tiro a puerta (con balón) / segada (sin balón).
 ##   - E: pase elevado / centro al área.
+##   - Potencia por mantenimiento: mantener pulsada la acción carga la
+##     potencia (0.4 → 1.0 en 0.8 s); soltar la ejecuta.
 ##
 ## La escena player.tscn monta los componentes como nodos hijos
 ## (arquitectura por componentes): StatsComponent y StaminaComponent.
 
-signal pass_requested(player: PlayerCharacter, direction: Vector2, lofted: bool)
-signal shot_requested(player: PlayerCharacter, direction: Vector2)
+signal pass_requested(player: PlayerCharacter, direction: Vector2, lofted: bool, power: float)
+signal shot_requested(player: PlayerCharacter, direction: Vector2, power: float)
 signal tackle_requested(player: PlayerCharacter, is_slide: bool)
 
 ## Escala px/seg por punto de stat de velocidad.
 const SPEED_TO_PIXELS := 1.35
 const SPRINT_MULTIPLIER := 1.4
+const MAX_CHARGE_TIME := 0.8
+const MIN_POWER := 0.4
+const TACKLE_COOLDOWN := 0.6
 
 @onready var stats_component: StatsComponent = $StatsComponent
 @onready var stamina_component: StaminaComponent = $StaminaComponent
 
 ## true mientras este jugador es el que controla el usuario.
 var is_user_controlled := false
-## true si este jugador tiene el balón en los pies.
+## true si este jugador tiene el balón en los pies (lo mantiene Ball).
 var has_ball := false
 ## Lado del campo al que pertenece (MatchRules.Side).
 var side: MatchRules.Side = MatchRules.Side.HOME
 ## Color de camiseta (placeholder visual hasta tener sprites de Aseprite).
 var shirt_color: Color = Color.WHITE
+## true mientras esprinta (lo consulta el FoulSystem al evaluar entradas).
+var sprinting := false
+## Última dirección de movimiento; orienta la conducción del balón.
+var facing := Vector2.RIGHT
+## Posición base de su hueco en la formación (la fija el MatchManager).
+var formation_spot := Vector2.ZERO
+
+var _charging_action: StringName = &""
+var _charge_time := 0.0
+var _tackle_cooldown := 0.0
 
 func setup(player_stats: PlayerStats, team_side: MatchRules.Side, color: Color) -> void:
 	stats_component.stats = player_stats
@@ -42,15 +57,29 @@ func setup(player_stats: PlayerStats, team_side: MatchRules.Side, color: Color) 
 	queue_redraw()
 
 func _physics_process(delta: float) -> void:
+	_tackle_cooldown = maxf(0.0, _tackle_cooldown - delta)
+
 	if is_user_controlled:
 		_process_user_input(delta)
-	# La IA mueve al jugador a través de AIController (nodo hermano en la
-	# escena de partido) fijando `velocity` antes de este punto.
+		queue_redraw()
+	else:
+		# La IA (AIController, nodo hijo) fija `velocity`; aquí solo
+		# se contabiliza su estamina.
+		stamina_component.tick(delta, sprinting, velocity.length() > 5.0)
+
+	if _charging_action != &"" and (not is_user_controlled or not has_ball):
+		_cancel_charge()
+	if _charging_action != &"":
+		_charge_time = minf(_charge_time + delta, MAX_CHARGE_TIME)
+
+	if velocity.length() > 5.0:
+		facing = velocity.normalized()
+
 	move_and_slide()
 
 func _process_user_input(delta: float) -> void:
 	var input_direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	var sprinting := Input.is_action_pressed("sprint") and stamina_component.current > 0.0
+	sprinting = Input.is_action_pressed("sprint") and stamina_component.current > 0.0
 
 	var speed := stats_component.get_stat(&"speed") * SPEED_TO_PIXELS
 	if sprinting:
@@ -65,27 +94,73 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if event.is_action_pressed("action_primary"):
 		if has_ball:
-			pass_requested.emit(self, aim_direction(), false)
+			_start_charge(&"pass")
 		else:
-			stamina_component.spend(stamina_component.tackle_cost)
-			tackle_requested.emit(self, false)
+			try_tackle(false)
+	elif event.is_action_released("action_primary"):
+		_release_charge(&"pass")
 	elif event.is_action_pressed("action_secondary"):
 		if has_ball:
-			shot_requested.emit(self, aim_direction())
+			_start_charge(&"shot")
 		else:
-			stamina_component.spend(stamina_component.tackle_cost)
-			tackle_requested.emit(self, true)
-	elif event.is_action_pressed("action_lob") and has_ball:
-		pass_requested.emit(self, aim_direction(), true)
+			try_tackle(true)
+	elif event.is_action_released("action_secondary"):
+		_release_charge(&"shot")
+	elif event.is_action_pressed("action_lob"):
+		if has_ball:
+			_start_charge(&"lob")
+	elif event.is_action_released("action_lob"):
+		_release_charge(&"lob")
+
+## Entrada con cooldown y coste de estamina; la usan el input del usuario
+## y la IA. El MatchManager resuelve el resultado con el FoulSystem.
+func try_tackle(is_slide: bool) -> void:
+	if _tackle_cooldown > 0.0:
+		return
+	_tackle_cooldown = TACKLE_COOLDOWN
+	stamina_component.spend(stamina_component.tackle_cost)
+	tackle_requested.emit(self, is_slide)
 
 ## Dirección normalizada hacia el cursor: el ratón siempre apunta.
 func aim_direction() -> Vector2:
 	var to_mouse := get_global_mouse_position() - global_position
-	return to_mouse.normalized() if to_mouse.length() > 0.01 else Vector2.RIGHT
+	return to_mouse.normalized() if to_mouse.length() > 0.01 else facing
+
+func is_charging() -> bool:
+	return _charging_action != &""
+
+func charge_power() -> float:
+	return MIN_POWER + (1.0 - MIN_POWER) * (_charge_time / MAX_CHARGE_TIME)
+
+func _start_charge(action: StringName) -> void:
+	_charging_action = action
+	_charge_time = 0.0
+
+func _release_charge(action: StringName) -> void:
+	if _charging_action != action:
+		return
+	var power := charge_power()
+	_cancel_charge()
+	if not has_ball:
+		return
+	match action:
+		&"pass":
+			pass_requested.emit(self, aim_direction(), false, power)
+		&"lob":
+			pass_requested.emit(self, aim_direction(), true, power)
+		&"shot":
+			shot_requested.emit(self, aim_direction(), power)
+
+func _cancel_charge() -> void:
+	_charging_action = &""
+	_charge_time = 0.0
 
 func _draw() -> void:
 	# Placeholder hasta integrar los sprites de Aseprite:
-	# rectángulo con el color del equipo + marcador de selección.
+	# rectángulo con el color del equipo + marcador de selección + apuntado.
 	draw_rect(Rect2(-5, -8, 10, 16), shirt_color)
 	if is_user_controlled:
 		draw_arc(Vector2(0, 10), 7.0, 0.0, TAU, 16, Color.WHITE, 1.0)
+		if has_ball:
+			var length := 14.0 + 22.0 * (charge_power() if is_charging() else 0.0)
+			draw_line(Vector2.ZERO, aim_direction() * length, Color(1, 1, 1, 0.7), 1.0)

@@ -2,13 +2,16 @@ class_name HUD
 extends CanvasLayer
 
 ## HUD de partido: marcador, reloj, barra de estamina del jugador
-## controlado y táctica activa. Se conecta a las señales del MatchManager
+## controlado, táctica activa, mensajes de eventos (gol, falta, tarjetas)
+## y pantalla de final. Se conecta a las señales del MatchManager
 ## (nodo padre en match.tscn).
 
 @onready var score_label: Label = %ScoreLabel
 @onready var clock_label: Label = %ClockLabel
 @onready var tactic_label: Label = %TacticLabel
 @onready var stamina_bar: ProgressBar = %StaminaBar
+@onready var message_label: Label = %MessageLabel
+@onready var full_time_label: Label = %FullTimeLabel
 
 var _match_manager: MatchManager
 
@@ -19,7 +22,6 @@ func _ready() -> void:
 	_match_manager.score_changed.connect(_on_score_changed)
 	_match_manager.clock_updated.connect(_on_clock_updated)
 	_match_manager.player_tactics.tactic_changed.connect(_on_tactic_changed)
-	_refresh_team_names()
 	_on_score_changed(0, 0)
 	_on_tactic_changed(_match_manager.player_tactics.current_tactic)
 
@@ -31,9 +33,22 @@ func track_player(player: PlayerCharacter) -> void:
 	if not stamina.stamina_changed.is_connected(_on_stamina_changed):
 		stamina.stamina_changed.connect(_on_stamina_changed)
 
-func _refresh_team_names() -> void:
-	# Los nombres cortos se muestran junto al marcador si hay equipos elegidos.
-	pass
+## Mensaje breve centrado en pantalla (gol, falta, tarjeta, descanso...).
+func show_message(text: String, duration: float = 2.0) -> void:
+	message_label.text = text
+	message_label.visible = true
+	var timer := get_tree().create_timer(duration)
+	timer.timeout.connect(func() -> void:
+		# Solo se oculta si nadie mostró otro mensaje mientras tanto.
+		if message_label.text == text:
+			message_label.visible = false)
+
+func show_full_time(home: int, away: int) -> void:
+	var home_name := GameState.player_team.team_name if GameState.player_team else "Local"
+	var away_name := GameState.ai_team.team_name if GameState.ai_team else "Visitante"
+	full_time_label.text = "FINAL\n%s %d - %d %s\n\nENTER: volver al menú" \
+			% [home_name, home, away, away_name]
+	full_time_label.visible = true
 
 func _on_score_changed(home: int, away: int) -> void:
 	var home_name := GameState.player_team.short_name if GameState.player_team else "LOC"
