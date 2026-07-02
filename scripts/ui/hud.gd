@@ -58,7 +58,7 @@ func show_message(text: String, duration: float = 2.0) -> void:
 func show_full_time(home: int, away: int) -> void:
 	var home_name := GameState.player_team.team_name if GameState.player_team else "Local"
 	var away_name := GameState.ai_team.team_name if GameState.ai_team else "Visitante"
-	full_time_label.text = "FINAL\n%s %d - %d %s\n\nENTER: volver al menú" \
+	full_time_label.text = "FINAL\n%s %d - %d %s\n\nENTER: continuar" \
 			% [home_name, home, away, away_name]
 	full_time_label.visible = true
 

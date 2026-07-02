@@ -26,6 +26,8 @@ Partidas locales **Jugador vs IA**, con equipos y jugadores 100% ficticios.
   multiplican el stat por ×1,25 — el multiplicador vive en los datos
   (`resources/traits/*.tres`), no en el código.
 - **Liga Overdrive**: 8 equipos ficticios con sus jugadores estrella.
+- **Modo Historia**: temporada de 14 jornadas con clasificación y 3 slots de
+  guardado; **Amistoso** aparte para partidos casuales.
 
 ## Ejecutar el proyecto
 

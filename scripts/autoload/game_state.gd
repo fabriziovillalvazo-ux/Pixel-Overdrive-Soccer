@@ -8,12 +8,21 @@ extends Node
 
 const TEAMS_DIR := "res://resources/teams/"
 
+## Modos (decisión registrada): AMISTOSO casual y MODO HISTORIA (liga).
+enum Mode { FRIENDLY, STORY }
+
 ## Los 8 equipos ficticios de la Liga Overdrive.
 var league_teams: Array[TeamData] = []
 
 ## Selección para el próximo partido.
 var player_team: TeamData
 var ai_team: TeamData
+
+## Contexto del partido en curso.
+var mode: Mode = Mode.FRIENDLY
+## Temporada activa del Modo Historia (null en amistosos).
+var league: League = null
+var league_slot := 1
 
 func _ready() -> void:
 	_load_league()
@@ -40,3 +49,9 @@ func pick_default_match() -> void:
 	if league_teams.size() >= 2:
 		player_team = league_teams[0]
 		ai_team = league_teams[1]
+
+func team_by_name(team_name: String) -> TeamData:
+	for team in league_teams:
+		if team.team_name == team_name:
+			return team
+	return null

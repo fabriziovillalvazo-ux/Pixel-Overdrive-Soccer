@@ -1,29 +1,48 @@
 extends Control
 
 ## Menú principal.
-## Modos (decisión registrada): AMISTOSO (partidos casuales, sin
-## persistencia) y LIGA con 3 slots de guardado + Copa KO (hito M4).
-## Ajustes: hora del partido (Día/Atardecer/Noche/Aleatoria), persistente.
+## JUGAR abre las dos opciones (decisión registrada): MODO HISTORIA (la
+## liga, 3 slots de guardado) y AMISTOSO (partidos casuales, sin
+## persistencia). Ajustes: hora del partido, persistente.
 
 const MATCH_SCENE := "res://scenes/match/match.tscn"
+const LEAGUE_SCENE := "res://scenes/league/league_menu.tscn"
 
-@onready var friendly_button: Button = %FriendlyButton
-@onready var league_button: Button = %LeagueButton
+@onready var home_box: VBoxContainer = %HomeBox
+@onready var play_box: VBoxContainer = %PlayBox
 @onready var time_button: Button = %TimeButton
 
 func _ready() -> void:
-	friendly_button.pressed.connect(_start_friendly)
+	%PlayButton.pressed.connect(_show_play_options)
+	%StoryButton.pressed.connect(_open_story)
+	%FriendlyButton.pressed.connect(_start_friendly)
+	%BackButton.pressed.connect(_show_home)
 	time_button.pressed.connect(_on_time_pressed)
-	# TODO(M4): pantalla de liga con 3 slots de guardado y Copa KO.
-	league_button.disabled = true
 	_refresh_time_button()
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_accept"):
+	if not event.is_action_pressed("ui_accept"):
+		return
+	if home_box.visible:
+		_show_play_options()
+	else:
 		_start_friendly()
+
+func _show_play_options() -> void:
+	home_box.visible = false
+	play_box.visible = true
+
+func _show_home() -> void:
+	play_box.visible = false
+	home_box.visible = true
+
+func _open_story() -> void:
+	get_tree().change_scene_to_file(LEAGUE_SCENE)
 
 func _start_friendly() -> void:
 	# TODO(M4): selección de equipo propio y rival para el amistoso.
+	GameState.mode = GameState.Mode.FRIENDLY
+	GameState.league = null
 	GameState.pick_default_match()
 	get_tree().change_scene_to_file(MATCH_SCENE)
 

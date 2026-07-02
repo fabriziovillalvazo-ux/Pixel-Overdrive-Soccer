@@ -21,6 +21,7 @@ signal match_ended(home: int, away: int)
 
 const PLAYER_SCENE := preload("res://scenes/actors/player.tscn")
 const MAIN_MENU_SCENE := "res://scenes/main/main.tscn"
+const LEAGUE_SCENE := "res://scenes/league/league_menu.tscn"
 
 ## Radio en el que un jugador captura un balón suelto.
 const CONTROL_RADIUS := 11.0
@@ -106,7 +107,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.is_action_pressed("ui_accept"):
 			# La pausa es global al árbol: hay que soltarla antes de salir.
 			get_tree().paused = false
-			get_tree().change_scene_to_file(MAIN_MENU_SCENE)
+			if GameState.mode == GameState.Mode.STORY and GameState.league != null:
+				# Modo Historia: registra el resultado, simula el resto de
+				# la jornada, guarda el slot y vuelve a la clasificación.
+				GameState.league.finish_player_round(home_score, away_score)
+				get_tree().change_scene_to_file(LEAGUE_SCENE)
+			else:
+				get_tree().change_scene_to_file(MAIN_MENU_SCENE)
 		return
 
 	if event.is_action_pressed("switch_player"):

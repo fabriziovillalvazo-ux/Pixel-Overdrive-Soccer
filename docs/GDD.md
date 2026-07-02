@@ -16,7 +16,7 @@
 | **Género** | Fútbol arcade con capa de simulación táctica |
 | **Cámara** | Lateral clásica 2D, emulando retransmisión de TV (estilo FIFA clásicos) |
 | **Controles** | Exclusivamente **teclado + ratón** (WASD + apuntado con cursor) |
-| **Modos** | Amistoso, **Liga Overdrive** (14 jornadas) y **Copa KO** — siempre partidas locales **Jugador vs IA enemiga**. Sin online, sin multijugador local |
+| **Modos** | **Modo Historia** (Liga Overdrive de 14 jornadas, 3 slots) y **Amistoso** casual; Copa KO en M4 — siempre partidas locales **Jugador vs IA enemiga**. Sin online, sin multijugador local |
 | **Contenido** | Liga Overdrive: 8 equipos ficticios con jugadores y stats inventados |
 | **Estética** | Pixel art "18 bits": más detalle que los 16 bits puros, animación expresiva, iluminación 2D moderna |
 
@@ -269,14 +269,19 @@ definida a mano (stats completos + referencia a su Trait).
 
 ### 7.1 Modos de juego (decisión registrada)
 
-- **Amistoso:** modo aparte de partidos casuales — elige tu equipo y el
-  rival y juega; sin persistencia ni consecuencias.
-- **Liga Overdrive:** temporada de 14 jornadas (ida y vuelta contra los otros
-  7 equipos) con tabla de clasificación; los partidos entre equipos IA se
-  simulan por stats. **3 slots de guardado independientes**
-  (`user://league_slot_[1-3].save`), cada uno con su propia temporada.
-- **Copa Overdrive:** torneo KO de 8 equipos a partido único (cuartos,
-  semifinal y final); el empate se resuelve con prórroga corta y penaltis.
+Al pulsar **JUGAR** en el menú principal aparecen dos opciones:
+
+- **Modo Historia (Liga Overdrive)** — implementado (v1): eliges uno de los
+  **3 slots de guardado independientes** (`user://league_slot_[1-3].save`),
+  escoges tu equipo y disputas una temporada de 14 jornadas (ida y vuelta
+  contra los otros 7). Tras cada partido se simulan por stats los demás
+  cruces de la jornada, se actualiza la clasificación y se guarda el slot.
+  El calendario se genera de forma determinista (método del círculo), así
+  que no necesita persistirse. Cada slot puede borrarse desde su pantalla.
+- **Amistoso** — partidos casuales: juega y listo, sin persistencia ni
+  consecuencias (selección de equipos en M4).
+- **Copa Overdrive** (M4): torneo KO de 8 equipos a partido único; el empate
+  se resuelve con prórroga corta y penaltis.
 - Todo es local Jugador vs IA: sin online ni multijugador local, por diseño.
 
 ---
@@ -362,9 +367,12 @@ return value
   en rojo por debajo del 35% (umbral técnico).
 - **Táctica activa** (abajo-derecha): `TÁCTICA: OFENSIVA`.
 - **Tarjetas**: overlay breve con el sprite del árbitro mostrando la cartulina.
-- **Menú principal**: AMISTOSO (partidos casuales) · LIGA (3 slots, M4) ·
-  AJUSTES — hoy: hora del partido (Día/Atardecer/Noche/Aleatoria, persistente).
-- Menú de liga (M4): selección de equipo con escudos pixelados y tabla.
+- **Menú principal**: JUGAR → **MODO HISTORIA** (liga, 3 slots) o
+  **AMISTOSO** (casual) · AJUSTES — hoy: hora del partido
+  (Día/Atardecer/Noche/Aleatoria, persistente).
+- **Pantalla de historia**: slots con resumen (equipo · jornada), elección
+  de equipo al crear partida, clasificación en vivo y botón de jornada;
+  escudos pixelados en M4.
 
 ## 10. Audio (decisión registrada)
 
@@ -387,6 +395,7 @@ graves cuanto mayor sea la potencia efectiva (los Súper Tiros a cañonazo).
 | **M1 — Esqueleto** | Proyecto Godot 4, arquitectura, datos de la liga, GDD | ✅ este commit |
 | **M2 — Balón y acciones** | 11 vs 11 en campo, posesión, pase/tiro/centro con carga, saques, faltas y expulsiones en juego, IA funcional con entrenador virtual | ✅ |
 | **M2.5 — Ambiente y control** | Ajustes persistentes con hora del partido (día/atardecer/noche + focos), swap clásico de campo, achique del portero (Espacio), afición sintetizada, placeholders y HUD al estilo de las referencias | ✅ |
+| **M2.6 — Modo Historia v1** | Menú JUGAR con Historia/Amistoso, 3 slots con guardado y borrado, elección de equipo, temporada de 14 jornadas con simulación del resto de cruces y clasificación | ✅ |
 | **M3 — IA fina y reglas** | Libres directos con barrera y penaltis, marcajes y coberturas, porteros con paradas por stats, 3 niveles de dificultad | ⬜ |
-| **M4 — Modos y presentación** | Liga Overdrive (14 jornadas, 3 slots) y Copa KO, selección de equipo en amistoso, sprites Aseprite, animaciones, audio grabado | ⬜ |
+| **M4 — Modos y presentación** | Copa KO, selección de equipo en amistoso, escudos pixelados en la liga, sprites Aseprite, animaciones, audio grabado | ⬜ |
 | **M5 — Pulido** | Balance de stats/Traits, repeticiones de gol, export final | ⬜ |

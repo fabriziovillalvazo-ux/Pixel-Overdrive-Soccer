@@ -22,34 +22,57 @@ anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 
-[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
+[node name="HomeBox" type="VBoxContainer" parent="CenterContainer"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="Title" type="Label" parent="CenterContainer/VBoxContainer"]
+[node name="Title" type="Label" parent="CenterContainer/HomeBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
 text = "PIXEL OVERDRIVE SOCCER"
 horizontal_alignment = 1
 
-[node name="FriendlyButton" type="Button" parent="CenterContainer/VBoxContainer"]
+[node name="PlayButton" type="Button" parent="CenterContainer/HomeBox"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "AMISTOSO (ENTER)"
+text = "JUGAR (ENTER)"
 
-[node name="LeagueButton" type="Button" parent="CenterContainer/VBoxContainer"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "LIGA · 3 SLOTS (PRÓXIMAMENTE)"
-
-[node name="TimeButton" type="Button" parent="CenterContainer/VBoxContainer"]
+[node name="TimeButton" type="Button" parent="CenterContainer/HomeBox"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "HORA DEL PARTIDO: DÍA"
 
-[node name="Hint" type="Label" parent="CenterContainer/VBoxContainer"]
+[node name="Hint" type="Label" parent="CenterContainer/HomeBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 10
 text = "WASD moverse · Ratón apuntar · Clic izq pase · Clic der tiro · E centro
 Shift sprint · Q cambiar jugador · Espacio achique del portero · 1/2/3 táctica"
 horizontal_alignment = 1
+
+[node name="PlayBox" type="VBoxContainer" parent="CenterContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="PlayTitle" type="Label" parent="CenterContainer/PlayBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "ELIGE MODO"
+horizontal_alignment = 1
+
+[node name="StoryButton" type="Button" parent="CenterContainer/PlayBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "MODO HISTORIA · LIGA OVERDRIVE"
+
+[node name="FriendlyButton" type="Button" parent="CenterContainer/PlayBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "AMISTOSO · PARTIDO CASUAL"
+
+[node name="BackButton" type="Button" parent="CenterContainer/PlayBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "VOLVER"
