@@ -16,6 +16,12 @@ Partidas locales **Jugador vs IA**, con equipos y jugadores 100% ficticios.
 - **Faltas y tarjetas** evaluadas por el timing y el ángulo de las entradas.
 - **Estamina** que degrada el rendimiento físico y técnico del jugador.
 - **Tácticas en vivo**: Ofensiva / Balanceada / Defensiva (teclas 1/2/3).
+- **Achique del portero**: mantener Espacio para que el portero (IA) salga a
+  tapar; Q cambia de jugador.
+- **Partidos de día, atardecer o noche** (con focos de estadio) configurables
+  en Ajustes, y cambio de campo clásico al descanso.
+- **Ambiente de estadio** con gritos de la afición en goles, faltas y saques
+  iniciales (sintetizado en tiempo real, sin assets).
 - **Traits**: rasgos únicos (Súper Tiro, Súper Velocidad, Súper Salto) que
   multiplican el stat por ×1,25 — el multiplicador vive en los datos
   (`resources/traits/*.tres`), no en el código.

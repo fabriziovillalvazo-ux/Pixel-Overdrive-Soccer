@@ -12,6 +12,9 @@ extends CanvasLayer
 @onready var stamina_bar: ProgressBar = %StaminaBar
 @onready var message_label: Label = %MessageLabel
 @onready var full_time_label: Label = %FullTimeLabel
+@onready var name_label: Label = %NameLabel
+@onready var home_chip: ColorRect = %HomeChip
+@onready var away_chip: ColorRect = %AwayChip
 
 var _match_manager: MatchManager
 
@@ -24,14 +27,23 @@ func _ready() -> void:
 	_match_manager.player_tactics.tactic_changed.connect(_on_tactic_changed)
 	_on_score_changed(0, 0)
 	_on_tactic_changed(_match_manager.player_tactics.current_tactic)
+	# Chips con los colores de cada equipo junto al marcador (referencia).
+	if GameState.player_team != null:
+		home_chip.color = GameState.player_team.primary_color
+	if GameState.ai_team != null:
+		away_chip.color = GameState.ai_team.primary_color
 
-## Llamar cuando cambie el jugador controlado para seguir su estamina.
+## Llamar cuando cambie el jugador controlado: sigue su estamina y muestra
+## su placa de nombre (estilo referencia: "Rex Voltaje · DEL").
 func track_player(player: PlayerCharacter) -> void:
 	var stamina := player.stamina_component
 	stamina_bar.max_value = stamina.max_stamina
 	stamina_bar.value = stamina.current
 	if not stamina.stamina_changed.is_connected(_on_stamina_changed):
 		stamina.stamina_changed.connect(_on_stamina_changed)
+	var stats := player.stats_component.stats
+	if stats != null:
+		name_label.text = "%s · %s" % [stats.player_name, stats.position_short_name()]
 
 ## Mensaje breve centrado en pantalla (gol, falta, tarjeta, descanso...).
 func show_message(text: String, duration: float = 2.0) -> void:

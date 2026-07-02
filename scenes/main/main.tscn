@@ -24,7 +24,7 @@ anchor_bottom = 1.0
 
 [node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
 layout_mode = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 12
 
 [node name="Title" type="Label" parent="CenterContainer/VBoxContainer"]
 layout_mode = 2
@@ -32,13 +32,24 @@ theme_override_font_sizes/font_size = 32
 text = "PIXEL OVERDRIVE SOCCER"
 horizontal_alignment = 1
 
-[node name="Subtitle" type="Label" parent="CenterContainer/VBoxContainer"]
+[node name="FriendlyButton" type="Button" parent="CenterContainer/VBoxContainer"]
+unique_name_in_owner = true
 layout_mode = 2
-text = "Pulsa ENTER o haz clic para jugar"
-horizontal_alignment = 1
+text = "AMISTOSO (ENTER)"
+
+[node name="LeagueButton" type="Button" parent="CenterContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "LIGA · 3 SLOTS (PRÓXIMAMENTE)"
+
+[node name="TimeButton" type="Button" parent="CenterContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "HORA DEL PARTIDO: DÍA"
 
 [node name="Hint" type="Label" parent="CenterContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 10
-text = "WASD moverse - Ratón apuntar - Clic izq pase - Clic der tiro - E centro - 1/2/3 táctica"
+text = "WASD moverse · Ratón apuntar · Clic izq pase · Clic der tiro · E centro
+Shift sprint · Q cambiar jugador · Espacio achique del portero · 1/2/3 táctica"
 horizontal_alignment = 1

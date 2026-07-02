@@ -33,6 +33,7 @@ const BALL_REACH := 12.0
 @onready var foul_system: FoulSystem = $FoulSystem
 @onready var ball: Ball = $Ball
 @onready var hud: HUD = $HUD
+@onready var lighting: StadiumLighting = $CanvasModulate
 
 ## Táctica de cada equipo. La del jugador se cambia con las teclas 1/2/3;
 ## la de la IA la ajusta su entrenador virtual según el marcador.
@@ -42,6 +43,8 @@ var ai_tactics := TacticsManager.new()
 var home_players: Array[PlayerCharacter] = []
 var away_players: Array[PlayerCharacter] = []
 var user_controlled: PlayerCharacter = null
+var home_goalkeeper: PlayerCharacter = null
+var crowd: CrowdAudio = null
 
 var home_score := 0
 var away_score := 0
@@ -68,8 +71,15 @@ func _ready() -> void:
 
 	if GameState.player_team == null:
 		GameState.pick_default_match()
+
+	# Ambiente: hora del partido (Ajustes) y afición sintetizada.
+	lighting.setup(Settings.resolve_match_time(), rules)
+	crowd = CrowdAudio.new()
+	add_child(crowd)
+
 	_spawn_teams()
 	_kickoff(MatchRules.Side.HOME)
+	crowd.cheer(0.7)
 
 func _physics_process(delta: float) -> void:
 	if not playing or get_tree().paused:
@@ -101,6 +111,10 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if event.is_action_pressed("switch_player"):
 		_switch_to_nearest()
+	elif event.is_action_pressed("gk_charge"):
+		_set_gk_charge(true)
+	elif event.is_action_released("gk_charge"):
+		_set_gk_charge(false)
 	elif event.is_action_pressed("tactic_offensive"):
 		player_tactics.set_tactic(TacticsManager.Tactic.OFFENSIVE)
 	elif event.is_action_pressed("tactic_balanced"):
@@ -115,6 +129,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _spawn_teams() -> void:
 	home_players = _spawn_team(GameState.player_team, MatchRules.Side.HOME, player_tactics)
 	away_players = _spawn_team(GameState.ai_team, MatchRules.Side.AWAY, ai_tactics)
+	home_goalkeeper = home_players[0]
 	# Con ambos equipos creados, cada IA conoce a compañeros y rivales.
 	for p in home_players:
 		var ai: AIController = p.get_node("AI")
@@ -197,6 +212,15 @@ func _set_controlled(p: PlayerCharacter) -> void:
 	p.queue_redraw()
 	hud.track_player(p)
 
+## Achique: mientras se mantiene Espacio, el portero (siempre IA) sale
+## hacia el balón para tapar; al soltar vuelve a cubrir la portería.
+func _set_gk_charge(active: bool) -> void:
+	if home_goalkeeper == null or not is_instance_valid(home_goalkeeper):
+		return
+	var ai := home_goalkeeper.get_node_or_null("AI") as AIController
+	if ai != null:
+		ai.charging_out = active
+
 func _switch_to_nearest() -> void:
 	var best: PlayerCharacter = null
 	var best_distance := INF
@@ -263,8 +287,8 @@ func _kickoff(kicking_side: MatchRules.Side) -> void:
 
 	var taker := _most_advanced(kicking_side)
 	if taker != null:
-		var toward_own := -14.0 if kicking_side == MatchRules.Side.HOME else 14.0
-		taker.global_position = Vector2(toward_own, 0.0)
+		# El que saca se coloca un paso hacia su propio campo.
+		taker.global_position = Vector2(-rules.attack_direction(kicking_side) * 14.0, 0.0)
 		_give_ball(taker)
 	elif user_controlled == null:
 		_switch_to_nearest()
@@ -272,7 +296,7 @@ func _kickoff(kicking_side: MatchRules.Side) -> void:
 
 func _most_advanced(side: MatchRules.Side) -> PlayerCharacter:
 	var candidates := home_players if side == MatchRules.Side.HOME else away_players
-	var forward := 1.0 if side == MatchRules.Side.HOME else -1.0
+	var forward := rules.attack_direction(side)
 	var best: PlayerCharacter = null
 	var best_x := -INF
 	for p in candidates:
@@ -290,6 +314,7 @@ func _on_goal_scored(scoring_side: MatchRules.Side) -> void:
 		away_score += 1
 	score_changed.emit(home_score, away_score)
 	hud.show_message("¡GOOOL!")
+	crowd.cheer(1.0)
 	var conceding := MatchRules.Side.AWAY \
 			if scoring_side == MatchRules.Side.HOME else MatchRules.Side.HOME
 	_kickoff(conceding)
@@ -336,6 +361,7 @@ func _nearest_of_side(side: MatchRules.Side, spot: Vector2) -> PlayerCharacter:
 
 func _on_foul_committed(_offender: Node, victim: Node, _result: FoulSystem.TackleResult) -> void:
 	hud.show_message("¡FALTA!")
+	crowd.cheer(0.4)
 	# Libre arcade: sin barreras ni pausa, la víctima recupera la posesión
 	# en el punto de la infracción para no frenar el ritmo.
 	var victim_player := victim as PlayerCharacter
@@ -361,6 +387,15 @@ func _send_off(p: PlayerCharacter) -> void:
 		_switch_to_nearest()
 	p.queue_free()
 
+## Swap clásico (decisión registrada): en la segunda parte los equipos
+## intercambian campo; las posiciones de formación se espejan y las reglas
+## invierten las direcciones de ataque.
+func _swap_sides() -> void:
+	rules.swap_sides()
+	for p in _all_players():
+		if is_instance_valid(p):
+			p.formation_spot.x = -p.formation_spot.x
+
 # --- Entrenador virtual y final de partido ---------------------------------
 
 func _update_ai_coach() -> void:
@@ -382,8 +417,9 @@ func _end_half() -> void:
 		current_half = 2
 		elapsed = 0.0
 		hud.show_message("DESCANSO", 2.5)
-		# TODO(M3): cambio de campo en la segunda parte.
+		_swap_sides()
 		_kickoff(MatchRules.Side.AWAY)
+		crowd.cheer(0.7)
 	else:
 		match_over = true
 		match_ended.emit(home_score, away_score)

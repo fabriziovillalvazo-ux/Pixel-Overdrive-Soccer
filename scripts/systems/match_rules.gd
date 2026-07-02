@@ -9,6 +9,10 @@ extends Node
 ##  desmarques profundos constantes. OFFSIDE_ENABLED se mantiene
 ##  como constante documental y no debe activarse.
 ## ============================================================
+##
+## Swap clásico (decisión registrada): los equipos cambian de campo en la
+## segunda parte. `home_defends_left` es la fuente de verdad de los lados;
+## goles, córners y direcciones de ataque se derivan de attack_direction().
 
 signal goal_scored(scoring_side: Side)
 signal ball_out(restart: Restart, side: Side, out_position: Vector2)
@@ -27,6 +31,19 @@ const OFFSIDE_ENABLED := false
 @export var field_half_width: float = 170.0
 @export var goal_half_height: float = 28.0
 
+## Primera parte: el local defiende la portería izquierda (x negativa).
+var home_defends_left := true
+
+## +1.0 si el equipo ataca hacia la derecha (+x), -1.0 hacia la izquierda.
+func attack_direction(side: Side) -> float:
+	if side == Side.HOME:
+		return 1.0 if home_defends_left else -1.0
+	return -1.0 if home_defends_left else 1.0
+
+## Cambio de campo al descanso.
+func swap_sides() -> void:
+	home_defends_left = not home_defends_left
+
 ## Siempre false: el fuera de juego está deshabilitado por diseño.
 ## La función existe solo para dejar constancia explícita de la decisión.
 func is_offside(_attacker_position: Vector2, _defenders: Array) -> bool:
@@ -42,14 +59,18 @@ func check_ball_position(ball_position: Vector2, last_touch_side: Side) -> bool:
 
 	# Línea de fondo.
 	if absf(ball_position.x) > field_half_length:
+		# ¿De quién es la portería de ese lado? La defiende quien ataca
+		# hacia el lado contrario.
+		var goal_direction := -1.0 if ball_position.x < 0.0 else 1.0
+		var defending_side := Side.HOME \
+				if attack_direction(Side.HOME) == -goal_direction else Side.AWAY
+
 		if absf(ball_position.y) <= goal_half_height:
-			# GOL: en la portería izquierda (x negativa) marca el visitante.
-			var scorer := Side.AWAY if ball_position.x < 0.0 else Side.HOME
-			goal_scored.emit(scorer)
+			goal_scored.emit(_opponent(defending_side))
 			return false
+
 		# Fuera por la línea de fondo: córner o saque de puerta según
 		# quién tocó por última vez.
-		var defending_side := Side.HOME if ball_position.x < 0.0 else Side.AWAY
 		if last_touch_side == defending_side:
 			ball_out.emit(Restart.CORNER, _opponent(defending_side), ball_position)
 		else:

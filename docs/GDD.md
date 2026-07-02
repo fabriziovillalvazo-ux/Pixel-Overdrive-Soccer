@@ -48,14 +48,27 @@
   segada, salto/cabezazo, celebración, lamento.
 - **Paleta global:** verdes saturados para el césped (franjas alternas de
   cortacésped), equipaciones de alto contraste, UI con negros azulados.
+- **Referencias visuales (decisión registrada, imágenes aportadas por el
+  diseñador):** fútbol pixel tipo *Pixel Cup Soccer* y los *ISS* de 16 bits.
+  De ahí se adoptan: proporciones compactas con cabeza grande y **contorno
+  oscuro** en todos los sprites (lectura instantánea), **nubes de polvo** en
+  entradas y sprints, **flecha de selección** sobre el jugador controlado,
+  **placa con el nombre** del jugador activo en el HUD y marcador superior
+  con los colores/escudos de ambos equipos. Los placeholders actuales ya
+  siguen este lenguaje para que los sprites finales encajen sin retocar UI.
 
 ### 2.2 Iluminación
 
 Con los nodos nativos de luz 2D de Godot:
 
-- **`CanvasModulate`**: tinte ambiental de la escena (día, atardecer, nocturno).
-- **`PointLight2D`**: focos del estadio en partidos nocturnos, destellos de
-  flashes en goles, "estela" luminosa de los tiros con Súper Tiro.
+- **Hora del partido configurable en Ajustes (decisión registrada):**
+  Día / Atardecer / Noche / Aleatoria, persistida en `user://settings.cfg`
+  (autoload `Settings`). Implementado en `StadiumLighting`.
+- **`CanvasModulate`**: tinte ambiental de la escena — casi blanco de día,
+  cálido naranja al atardecer, azulado de noche.
+- **`PointLight2D`**: seis focos de estadio en partidos nocturnos (textura
+  radial generada en código), destellos de flashes en goles, "estela"
+  luminosa de los tiros con Súper Tiro.
 - Sombras planas bajo jugadores y balón (la del balón encoge con la altura
   para vender la parábola de centros y pases elevados).
 
@@ -87,7 +100,8 @@ la del cursor respecto al jugador. Mapa definido en `project.godot`:
 | **Clic derecho** | Tiro a puerta hacia el cursor | Segada (slide tackle) |
 | **E** | Pase elevado / centro al área | — |
 | **Shift** | Sprint (consume estamina) | Sprint (consume estamina) |
-| **Espacio** | — | Cambiar al jugador más cercano al balón |
+| **Q** | — | Cambiar al jugador más cercano al balón |
+| **Espacio** (mantener) | — | **Achique del portero**: el portero (IA) sale hacia el balón para tapar; al soltar vuelve a puerta |
 | **1 / 2 / 3** | Táctica: Ofensiva / Balanceada / Defensiva | ídem |
 | **Esc** | Pausa | Pausa |
 
@@ -112,6 +126,9 @@ la del cursor respecto al jugador. Mapa definido en `project.godot`:
 - **Saques arcade instantáneos:** el balón se coloca en el punto de saque y el
   jugador más cercano del equipo beneficiado recibe la posesión al momento,
   sin cinemáticas ni pausas (pilar nº 1: ritmo).
+- **Cambio de campo clásico (decisión registrada):** en la segunda parte los
+  equipos intercambian porterías; `MatchRules.attack_direction()` es la única
+  fuente de verdad de los lados para IA, goles y saques.
 - **`OFFSIDE_ENABLED := false`** — constante documental. **No existe la regla
   de fuera de juego.** Es una decisión de diseño intencional (pilar nº 1):
   habilita desmarques profundos constantes y ritmo arcade. `is_offside()`
@@ -197,6 +214,14 @@ Stat efectivo = stat base (PlayerStats)
               × factor de estamina (StaminaComponent)
 ```
 
+### 5.6 Ritmo de juego (decisión registrada)
+
+Más técnico que frenético... pero sin perder el arranque arcade: la velocidad
+base de carrera es contenida (1,15 px/s por punto de stat, para dar tiempo a
+pensar el pase) y el **sprint es muy explosivo (×1,55)**, de modo que los
+cambios de ritmo — y la Súper Velocidad — decidan las jugadas. El sprint caro
+en estamina completa el triángulo: correr siempre no es viable.
+
 ---
 
 ## 6. IA enemiga
@@ -208,6 +233,11 @@ se lee del `TacticsManager` del equipo, así el cambio de táctica del rival se
 percibe de inmediato. Los compañeros no controlados del jugador usan la misma
 IA con la táctica propia.
 
+**Portero (decisión registrada):** siempre es IA — cubre su portería siguiendo
+la altura del balón y despeja largo en cuanto lo recibe. El usuario tiene una
+orden directa: **mantener Espacio hace que salga a achicar** (corre hacia el
+balón para tapar el ángulo); al soltar, regresa a puerta.
+
 **Dificultad (decisión registrada): 3 niveles** — Fácil / Normal / Difícil —
 escalando el tiempo de reacción y el error de pase de la IA, nunca inflando
 stats (la IA juega con las mismas cartas). Selección en el menú previo al
@@ -217,7 +247,8 @@ partido (hito M3).
 
 ## 7. Contenido: la Liga Overdrive
 
-8 equipos **100% ficticios**, cada uno con un jugador estrella con Trait. Las
+8 equipos **100% ficticios** (nombres confirmados como canon), cada uno con
+un jugador estrella con Trait. Las
 plantillas completas (11 jugadores) se generan proceduralmente con semilla
 estable a partir de `roster_names` y `base_overall` (ver `SquadFactory`),
 manteniendo los datos compactos.
@@ -238,10 +269,12 @@ definida a mano (stats completos + referencia a su Trait).
 
 ### 7.1 Modos de juego (decisión registrada)
 
-- **Amistoso:** elige tu equipo y el rival; sin persistencia.
+- **Amistoso:** modo aparte de partidos casuales — elige tu equipo y el
+  rival y juega; sin persistencia ni consecuencias.
 - **Liga Overdrive:** temporada de 14 jornadas (ida y vuelta contra los otros
   7 equipos) con tabla de clasificación; los partidos entre equipos IA se
-  simulan por stats. Guardado de la temporada en curso.
+  simulan por stats. **3 slots de guardado independientes**
+  (`user://league_slot_[1-3].save`), cada uno con su propia temporada.
 - **Copa Overdrive:** torneo KO de 8 equipos a partido único (cuartos,
   semifinal y final); el empate se resuelve con prórroga corta y penaltis.
 - Todo es local Jugador vs IA: sin online ni multijugador local, por diseño.
@@ -322,18 +355,28 @@ return value
 
 ## 9. UI / HUD
 
-- **Marcador** (arriba, centro): `NEO 2 - 1 PIX` + reloj escalado a 45'/parte.
-- **Barra de estamina** (abajo-izquierda) del jugador controlado; parpadea en
-  rojo por debajo del 35% (umbral técnico).
+- **Marcador** (arriba, centro): `NEO 2 - 1 PIX` con chips del color de cada
+  equipo (escudos pixelados en M4) + reloj escalado a 45'/parte.
+- **Placa de nombre** (abajo-izquierda, estilo referencia): nombre y posición
+  del jugador controlado, sobre su **barra de estamina**; la barra parpadea
+  en rojo por debajo del 35% (umbral técnico).
 - **Táctica activa** (abajo-derecha): `TÁCTICA: OFENSIVA`.
 - **Tarjetas**: overlay breve con el sprite del árbitro mostrando la cartulina.
-- Menú principal (M4): selección de equipo de la liga con escudos pixelados.
+- **Menú principal**: AMISTOSO (partidos casuales) · LIGA (3 slots, M4) ·
+  AJUSTES — hoy: hora del partido (Día/Atardecer/Noche/Aleatoria, persistente).
+- Menú de liga (M4): selección de equipo con escudos pixelados y tabla.
 
-## 10. Audio (resumen)
+## 10. Audio (decisión registrada)
 
-Chiptune "18 bits": módulos estilo tracker para menús, ambiente de estadio en
-bucle con oleadas al atacar, SFX de golpeo con más graves cuanto mayor sea la
-potencia efectiva del tiro (los Súper Tiros suenan a cañonazo).
+Por ahora, **solo afición**: ambiente de estadio en bucle (murmullo constante
+que "respira") y **gritos de la afición** en cuatro momentos: gol, falta,
+inicio de la primera parte e inicio de la segunda. Sin música ni comentarista
+de momento. Implementado sin assets con síntesis en tiempo real
+(`CrowdAudio`, ruido marrón + envolventes); cuando haya audio grabado, se
+sustituye el generador manteniendo la misma interfaz (`cheer()`).
+
+Ideas aparcadas para más adelante: chiptune de menús y SFX de golpeo con más
+graves cuanto mayor sea la potencia efectiva (los Súper Tiros a cañonazo).
 
 ---
 
@@ -343,6 +386,7 @@ potencia efectiva del tiro (los Súper Tiros suenan a cañonazo).
 |---|---|---|
 | **M1 — Esqueleto** | Proyecto Godot 4, arquitectura, datos de la liga, GDD | ✅ este commit |
 | **M2 — Balón y acciones** | 11 vs 11 en campo, posesión, pase/tiro/centro con carga, saques, faltas y expulsiones en juego, IA funcional con entrenador virtual | ✅ |
-| **M3 — IA fina y reglas** | Libres directos con barrera y penaltis, marcajes y coberturas, porteros con paradas por stats, 3 niveles de dificultad, cambio de campo al descanso | ⬜ |
-| **M4 — Modos y presentación** | Liga Overdrive (14 jornadas) y Copa KO con guardado, menú de selección de equipo, sprites Aseprite, animaciones, luces, audio | ⬜ |
+| **M2.5 — Ambiente y control** | Ajustes persistentes con hora del partido (día/atardecer/noche + focos), swap clásico de campo, achique del portero (Espacio), afición sintetizada, placeholders y HUD al estilo de las referencias | ✅ |
+| **M3 — IA fina y reglas** | Libres directos con barrera y penaltis, marcajes y coberturas, porteros con paradas por stats, 3 niveles de dificultad | ⬜ |
+| **M4 — Modos y presentación** | Liga Overdrive (14 jornadas, 3 slots) y Copa KO, selección de equipo en amistoso, sprites Aseprite, animaciones, audio grabado | ⬜ |
 | **M5 — Pulido** | Balance de stats/Traits, repeticiones de gol, export final | ⬜ |

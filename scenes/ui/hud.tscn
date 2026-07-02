@@ -12,6 +12,30 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 2
 
+[node name="HomeChip" type="ColorRect" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -142.0
+offset_top = 8.0
+offset_right = -128.0
+offset_bottom = 22.0
+grow_horizontal = 2
+
+[node name="AwayChip" type="ColorRect" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = 128.0
+offset_top = 8.0
+offset_right = 142.0
+offset_bottom = 22.0
+grow_horizontal = 2
+
 [node name="ScoreLabel" type="Label" parent="Root"]
 unique_name_in_owner = true
 layout_mode = 1
@@ -95,6 +119,20 @@ grow_horizontal = 0
 grow_vertical = 0
 text = "TÁCTICA: BALANCEADA"
 horizontal_alignment = 2
+
+[node name="NameLabel" type="Label" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 8.0
+offset_top = -40.0
+offset_right = 220.0
+offset_bottom = -24.0
+grow_vertical = 0
+theme_override_font_sizes/font_size = 10
+text = ""
 
 [node name="StaminaBar" type="ProgressBar" parent="Root"]
 unique_name_in_owner = true

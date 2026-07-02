@@ -1,16 +1,35 @@
 extends Control
 
-## Pantalla de título (placeholder del menú principal).
-## ENTER o clic para saltar al partido con los equipos por defecto.
-## TODO(M4): menú completo con selección de equipo de la Liga Overdrive.
+## Menú principal.
+## Modos (decisión registrada): AMISTOSO (partidos casuales, sin
+## persistencia) y LIGA con 3 slots de guardado + Copa KO (hito M4).
+## Ajustes: hora del partido (Día/Atardecer/Noche/Aleatoria), persistente.
 
 const MATCH_SCENE := "res://scenes/match/match.tscn"
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_accept") or _is_click(event):
-		GameState.pick_default_match()
-		get_tree().change_scene_to_file(MATCH_SCENE)
+@onready var friendly_button: Button = %FriendlyButton
+@onready var league_button: Button = %LeagueButton
+@onready var time_button: Button = %TimeButton
 
-func _is_click(event: InputEvent) -> bool:
-	var mouse_event := event as InputEventMouseButton
-	return mouse_event != null and mouse_event.pressed
+func _ready() -> void:
+	friendly_button.pressed.connect(_start_friendly)
+	time_button.pressed.connect(_on_time_pressed)
+	# TODO(M4): pantalla de liga con 3 slots de guardado y Copa KO.
+	league_button.disabled = true
+	_refresh_time_button()
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_accept"):
+		_start_friendly()
+
+func _start_friendly() -> void:
+	# TODO(M4): selección de equipo propio y rival para el amistoso.
+	GameState.pick_default_match()
+	get_tree().change_scene_to_file(MATCH_SCENE)
+
+func _on_time_pressed() -> void:
+	Settings.cycle_time_of_day()
+	_refresh_time_button()
+
+func _refresh_time_button() -> void:
+	time_button.text = "HORA DEL PARTIDO: %s" % Settings.time_of_day_display_name()

@@ -20,6 +20,9 @@ var rules: MatchRules
 var teammates: Array[PlayerCharacter] = []
 var opponents: Array[PlayerCharacter] = []
 var is_goalkeeper := false
+## Achique (decisión registrada): mientras el usuario mantiene Espacio,
+## su portero sale hacia el balón para tapar; al soltar, vuelve a puerta.
+var charging_out := false
 
 var _state: State = State.POSITION
 var _think_timer := 0.0
@@ -42,6 +45,10 @@ func _decide_state() -> State:
 	if controlled_player.has_ball:
 		return State.ATTACK
 	if is_goalkeeper:
+		var rival_ball := ball.carrier == null \
+				or (is_instance_valid(ball.carrier) and ball.carrier.side != controlled_player.side)
+		if charging_out and rival_ball:
+			return State.CHASE_BALL
 		return State.POSITION
 	if ball.carrier != null and ball.carrier.side == controlled_player.side:
 		return State.POSITION
@@ -72,7 +79,7 @@ func _position_target() -> Vector2:
 		return target
 
 	var target := controlled_player.formation_spot
-	var forward := 1.0 if controlled_player.side == MatchRules.Side.HOME else -1.0
+	var forward := rules.attack_direction(controlled_player.side)
 	if tactics:
 		# La táctica desplaza la posición base hacia el ataque o la defensa.
 		target.x += tactics.get_modifier("line_height") * 120.0 * forward
@@ -82,9 +89,7 @@ func _position_target() -> Vector2:
 	return target
 
 func _attack() -> void:
-	var goal_x := rules.field_half_length \
-			if controlled_player.side == MatchRules.Side.HOME \
-			else -rules.field_half_length
+	var goal_x := rules.field_half_length * rules.attack_direction(controlled_player.side)
 	var goal_center := Vector2(goal_x, 0.0)
 	var pos := controlled_player.global_position
 

@@ -20,8 +20,10 @@ signal shot_requested(player: PlayerCharacter, direction: Vector2, power: float)
 signal tackle_requested(player: PlayerCharacter, is_slide: bool)
 
 ## Escala px/seg por punto de stat de velocidad.
-const SPEED_TO_PIXELS := 1.35
-const SPRINT_MULTIPLIER := 1.4
+## Decisión registrada (ritmo de juego): base contenida para un juego más
+## técnico, con un sprint muy explosivo que conserva el toque frenético.
+const SPEED_TO_PIXELS := 1.15
+const SPRINT_MULTIPLIER := 1.55
 const MAX_CHARGE_TIME := 0.8
 const MIN_POWER := 0.4
 const TACKLE_COOLDOWN := 0.6
@@ -47,6 +49,7 @@ var formation_spot := Vector2.ZERO
 var _charging_action: StringName = &""
 var _charge_time := 0.0
 var _tackle_cooldown := 0.0
+var _dust_timer := 0.0
 
 func setup(player_stats: PlayerStats, team_side: MatchRules.Side, color: Color) -> void:
 	stats_component.stats = player_stats
@@ -88,6 +91,13 @@ func _process_user_input(delta: float) -> void:
 	velocity = input_direction * speed
 	stamina_component.tick(delta, sprinting, input_direction != Vector2.ZERO)
 
+	# Estela de polvo al esprintar (estilo de la referencia visual).
+	if sprinting and input_direction != Vector2.ZERO:
+		_dust_timer -= delta
+		if _dust_timer <= 0.0:
+			_dust_timer = 0.22
+			_spawn_dust()
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not is_user_controlled:
 		return
@@ -119,6 +129,7 @@ func try_tackle(is_slide: bool) -> void:
 		return
 	_tackle_cooldown = TACKLE_COOLDOWN
 	stamina_component.spend(stamina_component.tackle_cost)
+	_spawn_dust()
 	tackle_requested.emit(self, is_slide)
 
 ## Dirección normalizada hacia el cursor: el ratón siempre apunta.
@@ -155,12 +166,26 @@ func _cancel_charge() -> void:
 	_charging_action = &""
 	_charge_time = 0.0
 
+func _spawn_dust() -> void:
+	if not is_inside_tree():
+		return
+	var puff := DustPuff.new()
+	get_parent().add_child(puff)
+	puff.global_position = global_position + Vector2(0, 8)
+
 func _draw() -> void:
-	# Placeholder hasta integrar los sprites de Aseprite:
-	# rectángulo con el color del equipo + marcador de selección + apuntado.
-	draw_rect(Rect2(-5, -8, 10, 16), shirt_color)
+	# Placeholder fiel al estilo de referencia (proporciones compactas con
+	# cabeza grande y contorno oscuro) hasta integrar sprites de Aseprite.
+	var outline := Color(0.08, 0.07, 0.1)
+	draw_rect(Rect2(-6, -12, 12, 22), outline)
+	draw_circle(Vector2(0, -7), 4.0, Color(0.96, 0.8, 0.65))
+	draw_rect(Rect2(-5, -3, 10, 8), shirt_color)
+	draw_rect(Rect2(-5, 5, 10, 4), shirt_color.darkened(0.55))
 	if is_user_controlled:
-		draw_arc(Vector2(0, 10), 7.0, 0.0, TAU, 16, Color.WHITE, 1.0)
+		# Flecha de selección sobre la cabeza, como en la referencia.
+		var arrow := PackedVector2Array([
+			Vector2(-4, -20), Vector2(4, -20), Vector2(0, -14)])
+		draw_colored_polygon(arrow, Color(1.0, 0.9, 0.2))
 		if has_ball:
 			var length := 14.0 + 22.0 * (charge_power() if is_charging() else 0.0)
 			draw_line(Vector2.ZERO, aim_direction() * length, Color(1, 1, 1, 0.7), 1.0)
