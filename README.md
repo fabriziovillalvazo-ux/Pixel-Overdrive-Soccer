@@ -47,12 +47,16 @@ vivo, sin fuera de juego, achique del portero, Modo Historia (3 slots vía
 **Para jugar:** abre `web/index.html` con doble clic en cualquier navegador
 moderno (Chrome recomendado). No necesita servidor ni instalación.
 
-Simplificaciones respecto a la versión Godot: cámara fija que muestra todo
-el campo (sin seguimiento estilo TV), sin libres directos/penaltis
-todavía, sin sprites de Aseprite (placeholders con la misma estética:
-contorno oscuro, flecha de selección, polvo). El motor Godot sigue siendo
-la versión de referencia para producción; esta build es un paralelo ligero
-para jugar sin fricciones.
+Incluye: campo grande con **cámara estilo TV** que sigue al balón (con
+adelanto) + **radar táctico**, jugadores animados (carrera, sombra, pelo y
+tonos de piel variados, contorno pixel), IA por roles (presión, cobertura,
+marcajes, desmarques sin offside, pases al espacio, portero con paradas y
+entrenador virtual), **menú de pausa con abandono** (derrota por 3 goles de
+diferencia), partes de **2 minutos reales** mostradas como 45', estelas de
+Súper Velocidad/Súper Tiro y sonidos sintetizados (afición, silbato,
+golpeo). Pendiente aún: libres directos/penaltis con pausa y sprites
+finales de Aseprite. El proyecto Godot sigue siendo la versión de
+referencia para producción.
 
 ## Estructura
 
