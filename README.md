@@ -29,17 +29,37 @@ Partidas locales **Jugador vs IA**, con equipos y jugadores 100% ficticios.
 - **Modo Historia**: temporada de 14 jornadas con clasificación y 3 slots de
   guardado; **Amistoso** aparte para partidos casuales.
 
-## Ejecutar el proyecto
+## Ejecutar el proyecto (Godot, versión de referencia)
 
 1. Instalar [Godot 4.3+](https://godotengine.org/download) (rama estándar, GDScript).
 2. Abrir el gestor de proyectos de Godot → *Importar* → seleccionar `project.godot`.
 3. Pulsar **F5** para ejecutar (escena principal: `scenes/main/main.tscn`).
 
+## Ejecutar la versión web (`web/index.html`)
+
+Build alternativa en HTML5 + Canvas + JavaScript puro, sin Godot ni ningún
+motor externo — útil en equipos donde Godot no arranca (GPUs muy antiguas
+sin soporte Vulkan/Metal suficiente). Reimplementa el núcleo jugable: los 8
+equipos con sus Traits, estamina, faltas por timing/ángulo, tácticas en
+vivo, sin fuera de juego, achique del portero, Modo Historia (3 slots vía
+`localStorage`) y Amistoso.
+
+**Para jugar:** abre `web/index.html` con doble clic en cualquier navegador
+moderno (Chrome recomendado). No necesita servidor ni instalación.
+
+Simplificaciones respecto a la versión Godot: cámara fija que muestra todo
+el campo (sin seguimiento estilo TV), sin libres directos/penaltis
+todavía, sin sprites de Aseprite (placeholders con la misma estética:
+contorno oscuro, flecha de selección, polvo). El motor Godot sigue siendo
+la versión de referencia para producción; esta build es un paralelo ligero
+para jugar sin fricciones.
+
 ## Estructura
 
 ```
 docs/GDD.md      documento de diseño (arte, mecánicas, arquitectura, liga)
-scenes/          escenas: menú, partido, actores, HUD
+web/index.html   versión jugable en navegador (HTML5 + Canvas + JS, sin Godot)
+scenes/          escenas de Godot: menú, partido, actores, HUD
 scripts/         GDScript por capas: autoload, components, systems, actors, match, ui
 resources/       datos .tres: Traits (×1,25) y los 8 equipos de la liga
 assets/          sprites (Aseprite), audio y fuentes
@@ -48,6 +68,7 @@ assets/          sprites (Aseprite), audio y fuentes
 ## Stack
 
 - **Godot 4.x** con **GDScript** (renderer GL Compatibility, filtro Nearest,
-  viewport 640×360).
+  viewport 640×360) para la versión de producción.
+- **HTML5 + Canvas 2D + JavaScript** (sin dependencias) para la build web.
 - **Aseprite** para el pixel art.
 - Iluminación con nodos nativos de luz 2D (`PointLight2D`, `CanvasModulate`).
