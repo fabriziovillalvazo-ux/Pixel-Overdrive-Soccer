@@ -71,7 +71,7 @@ h2{font-size:1.15rem;letter-spacing:1px;margin:0 0 4px;opacity:.9;}
     <h1>PIXEL OVERDRIVE SOCCER</h1>
     <button class="btn" id="btn-play">JUGAR</button>
     <button class="btn" id="btn-time">HORA DEL PARTIDO: DÍA</button>
-    <div class="hint">WASD moverse · Ratón apuntar · Clic izq pase al pie / entrada · Rueda pase filtrado · Clic der tiro / barrida · E centro<br>Shift sprint · Q cambiar jugador · Espacio achique del portero · 1/2/3 táctica · Esc pausa</div>
+    <div class="hint">WASD mover · Ratón apuntar · CLIC DER pase / entrada · E filtrado / salida GK · CLIC IZQ tiro / forcejeo · Q centro / barrida<br>R+tiro colocado · ESPACIO+tiro potente (vaselina si el GK sale) · ESPACIO dribbling · CTRL jockey · ALT face up<br>TAB cambio (mantener + ratón = manual) · F o clic central + gesto = filigrana · ←/→ mentalidad · SHIFT sprint · ESC pausa</div>
   </div>
 
   <div class="screen" id="screen-play-choice">
@@ -471,7 +471,10 @@ class BallEntity{
   constructor(){ this.pos={x:FIELD_CX,y:FIELD_CY}; this.vel={x:0,y:0}; this.height=0; this.heightVel=0; this.carrier=null; this.lastTouchSide="home"; this.lastKicker=null; this.lastKickWasShot=false; this.repossessCooldown=0; this.spin=0; }
   update(dt){
     if(this.carrier){
-      this.pos={x:this.carrier.pos.x+this.carrier.facing.x*10, y:this.carrier.pos.y+this.carrier.facing.y*10};
+      // La distancia de conducción depende del estado: sprint la empuja
+      // lejos, el dribbling técnico (SPACE) la pega al pie.
+      const off=this.carrier.carryOffset||10;
+      this.pos={x:this.carrier.pos.x+this.carrier.facing.x*off, y:this.carrier.pos.y+this.carrier.facing.y*off};
       this.vel={x:0,y:0}; this.height=0; this.heightVel=0; return;
     }
     this.repossessCooldown=Math.max(0,this.repossessCooldown-dt);
@@ -562,6 +565,7 @@ class Actor{
     // Barridas e invulnerabilidad tras robo (decisiones registradas).
     this.slideTimer=0; this.slideDir={x:1,y:0}; this.slideResolved=false;
     this.recoverTimer=0; this.stealProtection=0;
+    this.jockeying=false; this.carryOffset=10; this.skillCooldown=0;
     const h=Math.abs(hashStr(data.name));
     this.hairColor=HAIR_COLORS[h%HAIR_COLORS.length];
     this.skinColor=SKIN_COLORS[(h>>3)%SKIN_COLORS.length];
@@ -905,7 +909,26 @@ class Match{
     for(const p of this.players){
       if(p.sentOff) continue;
       const radius = p.isGK ? 15 : 12;
-      if(dist(p.pos,this.ball.pos)<radius && this.ball.canBeTakenBy(p)){ this.giveBall(p); return; }
+      if(dist(p.pos,this.ball.pos)<radius && this.ball.canBeTakenBy(p)){
+        // Primer toque: los pases muy fuertes se escapan unos píxeles,
+        // salvo control orientado (R para el usuario; técnica para la IA).
+        const sp=vlen(this.ball.vel);
+        if(sp>340 && !p.isGK){
+          const controlled = p===this.userControlled
+            ? keys.has("KeyR")
+            : Math.random() < p.effectiveStat("technique")/130;
+          if(!controlled){
+            const dir=norm(this.ball.vel);
+            this.ball.vel={x:dir.x*sp*0.32+(Math.random()*40-20), y:dir.y*sp*0.32+(Math.random()*40-20)};
+            this.ball.lastKicker=p;
+            this.ball.repossessCooldown=0.3;
+            spawnDust(this,p.pos);
+            return;
+          }
+        }
+        this.giveBall(p);
+        return;
+      }
     }
   }
 }
@@ -960,8 +983,13 @@ function startSlide(match,p){
   spawnDust(match,p.pos);
 }
 // Resolución del contacto: ¿qué se toca primero, el balón o el jugador?
-function resolveTackleContact(match,tackler,isSlide){
-  const reach=(isSlide?24:18)+tackler.effectiveStat("tackling")/99*5;
+// Ajuste (decisión registrada): las faltas deben ser poco comunes. Hay una
+// ventana amplia de "robo limpio" y una zona intermedia de choque sin
+// consecuencias; solo la entrada claramente tardía (balón fuera de alcance
+// tocando el cuerpo) es falta.
+function resolveTackleContact(match,tackler,isSlide,press){
+  let reach=(isSlide?24: press?15:18)+tackler.effectiveStat("tackling")/99*5;
+  if(tackler.jockeying) reach+=4; // el jockey mejora el alcance de la entrada
   const carrier=match.ball.carrier;
   if(!carrier){
     // Balón dividido: barrerse para llegar antes es legal.
@@ -976,13 +1004,32 @@ function resolveTackleContact(match,tackler,isSlide){
   if(carrier.stealProtection>0) return;
   const dBall=dist(tackler.pos,match.ball.pos);
   const dBody=dist(tackler.pos,carrier.pos);
-  if(dBall<=reach && dBall<=dBody+1){
+  if(dBall<=reach && dBall<=dBody+6){
     // Tocó primero el balón: robo limpio, sin falta posible.
     match.giveBall(tackler);
     tackler.stealProtection=0.3;
     return;
   }
-  if(dBody<=reach) handleFoul(match,tackler,carrier,isSlide);
+  if(!press && dBody<=reach && dBall>reach*1.15){
+    // Claramente tarde y al cuerpo: falta.
+    handleFoul(match,tackler,carrier,isSlide);
+  }
+  // Zona intermedia (o carga física): choque sin consecuencias.
+}
+// Carga física (forcejeo, clic izquierdo sin balón): empujón corto que solo
+// roba si toca el balón; nunca es falta.
+function attemptPress(match,p){
+  if(match.stoppage||match.paused||match.matchOver) return;
+  if(p.tackleCooldown>0||p.slideTimer>0||p.recoverTimer>0) return;
+  p.tackleCooldown=0.45;
+  p.stamina=Math.max(0,p.stamina-3);
+  resolveTackleContact(match,p,false,true);
+  const c=match.ball.carrier;
+  if(c&&c.side!==p.side&&dist(p.pos,c.pos)<20){
+    const push=norm(sub(c.pos,p.pos));
+    c.vel={x:c.vel.x+push.x*90,y:c.vel.y+push.y*90};
+    spawnDust(match,p.pos);
+  }
 }
 // Falta: silbato, abucheos, rótulo con pausa de 2 s y cobro (libre o penalti).
 function handleFoul(match,offender,victim,isSlide){
@@ -1018,20 +1065,27 @@ function handleFoul(match,offender,victim,isSlide){
 // Tiro (clic derecho): NUNCA es 100% exacto. Siempre hay una pequeña
 // dispersión por técnica, y un 5% de las veces el tiro sale claramente
 // desviado (decisión registrada: margen de fallo del 5%).
-function executeShot(match, player, dir, power){
+// Estilos (FC 26): normal · finesse (R, colocado) · power (SPACE, potente)
+// · lob (SPACE con el portero adelantado, vaselina).
+function executeShot(match, player, dir, power, style){
   if(match.ball.carrier!==player) return;
+  style=style||"normal";
   const stat=player.effectiveStat("shotPower");
   let speed=(300+stat*4.2)*(0.55+0.45*power);
-  const baseSigma=0.022+0.02*(1-player.effectiveStat("technique")/120);
-  let ang=gaussianRandom()*baseSigma;
+  let sigma=0.022+0.02*(1-player.effectiveStat("technique")/120);
+  let loft=45*power;
+  if(style==="finesse"){ speed*=0.8; sigma*=0.45; loft=30*power; }
+  else if(style==="power"){ speed*=1.18; sigma*=1.75; loft=60*power; }
+  else if(style==="lob"){ speed*=0.6; sigma*=0.8; loft=270+90*power; }
+  let ang=gaussianRandom()*sigma;
   if(Math.random()<0.05){
     ang += (Math.random()<0.5?-1:1)*(0.13+Math.random()*0.12);
     speed*=0.85;
   }
-  match.ball.kickV(rotate(dir,ang), clamp(speed,200,880), player.side, 45*power, player, true);
+  match.ball.kickV(rotate(dir,ang), clamp(speed,180,980), player.side, loft, player, true);
   match.intendedReceiver=null;
 }
-// Centro / pase elevado manual (tecla E, con carga).
+// Centro / pase elevado manual (tecla Q, con carga).
 function executeLob(match, player, dir, power){
   if(match.ball.carrier!==player) return;
   const stat=player.effectiveStat("passing");
@@ -1075,7 +1129,7 @@ function assistedPassTo(match, player, mate, through){
   match.ball.kickV(rotate(sub(lead,player.pos),jitter), speed, player.side, 0, player, false);
   match.intendedReceiver=mate;
 }
-// Pase al pie (clic izquierdo): automático hacia el compañero apuntado.
+// Pase al pie (clic derecho): automático hacia el compañero apuntado.
 function executeGroundPass(match, player){
   if(match.ball.carrier!==player) return;
   const aim=aimDirection(player);
@@ -1083,7 +1137,7 @@ function executeGroundPass(match, player){
   if(mate) assistedPassTo(match,player,mate,false);
   else match.ball.kickV(aim, 430, player.side, 0, player, false);
 }
-// Pase filtrado (rueda del ratón): al espacio, para el desmarque.
+// Pase filtrado (tecla E): al espacio, para el desmarque.
 function executeThroughPass(match, player){
   if(match.ball.carrier!==player) return;
   const aim=aimDirection(player);
@@ -1150,6 +1204,8 @@ function moveActor(p,target,dt,opts){
     p.sprinting=false;
     p.stamina=Math.min(p.maxStamina,p.stamina+8*dt);
   }
+  p.jockeying=false;
+  p.carryOffset = (opts.sprint&&p.hasBall)?14:10;
   applyMove(p,desired,dt,900);
 }
 function updateAI(p,dt,m){
@@ -1185,13 +1241,15 @@ function aiChase(p,dt,m){
   moveActor(p,target,dt,{sprint: dist(p.pos,target)>110});
   if(!c || c.side===p.side || p.tackleCooldown>0) return;
   const d=dist(p.pos,c.pos);
-  // La IA prefiere no entrar por la espalda (evita tarjetas).
+  const dBall=dist(p.pos,m.ball.pos);
   const toT=norm(sub(p.pos,c.pos));
   const ang=Math.acos(clamp(dot(c.facing,toT),-1,1))*180/Math.PI;
-  if(d<19){
-    if(ang<120 || Math.random()<0.3) attemptTackle(m,p,false);
-  } else if(d<44 && d>20 && vlen(c.vel)>130 && ang<110 && Math.random()<dt*0.7){
-    // Barrida para cazar al portador que se escapa.
+  // Contención primero (decisión registrada: faltas poco comunes): la IA
+  // solo entra cuando el balón es alcanzable de verdad, casi nunca por
+  // detrás, y se barre mucho menos.
+  if(d<19 && dBall<20){
+    if(ang<100 || dBall<13) attemptTackle(m,p,false);
+  } else if(d<40 && d>22 && dBall<36 && vlen(c.vel)>140 && ang<85 && Math.random()<dt*0.25){
     attemptTackle(m,p,true);
   }
 }
@@ -1375,8 +1433,14 @@ function aiGoalkeeper(p,dt,m){
 /* ---------- Entrada del usuario ---------- */
 const keys=new Set();
 let mouseCanvas={x:VIEW_W/2,y:VIEW_H/2};
-let charge={action:null,time:0};
+let charge={action:null,time:0};   // "shot" (clic izq) | "cross" (Q)
 let currentMatch=null;
+// Cambio manual de jugador (TAB mantenido + dirección del ratón).
+let tabHold={active:false,downAt:0};
+// Filigranas (F o botón central + gesto del ratón).
+let skillHeld=false;
+const gesture={x:0,y:0};
+let frameCount=0;
 
 function mouseWorld(){
   const c=currentMatch;
@@ -1391,8 +1455,81 @@ function releaseCharge(action){
   const p=currentMatch.userControlled;
   if(!p || !p.hasBall) return;
   const dir=aimDirection(p);
-  if(action==="lob") executeLob(currentMatch,p,dir,power);
-  else if(action==="shot") executeShot(currentMatch,p,dir,power);
+  if(action==="cross") executeLob(currentMatch,p,dir,power);
+  else if(action==="shot"){
+    // Modificadores al soltar: R = colocado; SPACE = potente, o vaselina
+    // contextual si el portero rival está adelantado.
+    let style="normal";
+    if(keys.has("KeyR")) style="finesse";
+    else if(keys.has("Space")) style = opponentGKAdvanced(currentMatch,p.side) ? "lob" : "power";
+    executeShot(currentMatch,p,dir,power,style);
+  }
+}
+function opponentGKAdvanced(m,side){
+  const list = side==="home"?m.awayPlayers:m.homePlayers;
+  const gk=list.find(q=>q.isGK&&!q.sentOff);
+  if(!gk) return false;
+  return dist(gk.pos,m.ownGoalCenter(gk.side))>75;
+}
+// Candidato del cambio manual: compañero mejor alineado con el ratón.
+function manualSwitchCandidate(m){
+  const u=m.userControlled;
+  if(!u) return null;
+  const dir=norm(sub(mouseWorld(),u.pos));
+  let best=null,bestScore=-Infinity;
+  for(const q of m.homePlayers){
+    if(q===u||q.sentOff) continue;
+    const to=sub(q.pos,u.pos), d=vlen(to);
+    if(d<10||d>620) continue;
+    const ang=Math.acos(clamp(dot(norm(to),dir),-1,1));
+    if(ang>Math.PI/3) continue;
+    const score=-ang*150-d*0.25;
+    if(score>bestScore){ bestScore=score; best=q; }
+  }
+  return best;
+}
+// Mentalidad con flechas (izquierda = defensiva, derecha = ofensiva).
+const MENTALITY_ORDER=["defensive","balanced","offensive"];
+function stepMentality(delta){
+  const m=currentMatch;
+  if(!m||m.matchOver) return;
+  const i=clamp(MENTALITY_ORDER.indexOf(m.tacticHome)+delta,0,MENTALITY_ORDER.length-1);
+  m.tacticHome=MENTALITY_ORDER[i];
+  m.showMessage("MENTALIDAD: "+TACTIC_LABEL[m.tacticHome],1200);
+}
+// Filigranas: el gesto del ratón (equivalente al stick derecho) decide la
+// skill relativa al facing: adelante = autopase; atrás = drag back;
+// lateral = croqueta.
+function tryExecuteSkill(){
+  const m=currentMatch;
+  if(!m||m.paused||m.stoppage||m.matchOver) return;
+  const p=m.userControlled;
+  if(!p||!p.hasBall||p.skillCooldown>0) return;
+  const len=Math.hypot(gesture.x,gesture.y);
+  if(len<26) return;
+  const g={x:gesture.x/len,y:gesture.y/len};
+  gesture.x=0; gesture.y=0;
+  p.skillCooldown=0.8;
+  p.stamina=Math.max(0,p.stamina-4);
+  spawnDust(m,p.pos);
+  m.ghosts.push({x:p.pos.x,y:p.pos.y,color:p.color,age:0});
+  const f=p.facing, d=dot(g,f);
+  if(d>0.5){
+    // Autopase (knock-on): empuja el balón y arranca tras él.
+    m.ball.kickV(f,300,p.side,0,null,false);
+    p.vel={x:f.x*260,y:f.y*260};
+  } else if(d<-0.5){
+    // Drag back: retrocede con el balón y gira.
+    p.pos.x=clamp(p.pos.x-f.x*16,30,WORLD_W-30);
+    p.pos.y=clamp(p.pos.y-f.y*16,30,WORLD_H-30);
+    p.facing={x:-f.x,y:-f.y};
+  } else {
+    // Croqueta lateral.
+    const per={x:-f.y,y:f.x};
+    const s=dot(g,per)>0?1:-1;
+    p.pos.x=clamp(p.pos.x+per.x*18*s,30,WORLD_W-30);
+    p.pos.y=clamp(p.pos.y+per.y*18*s,30,WORLD_H-30);
+  }
 }
 function aimDirection(p){
   const d=sub(mouseWorld(),p.pos), l=vlen(d);
@@ -1407,17 +1544,34 @@ function updateUserMovement(match,dt){
   if(keys.has("KeyA")) dx-=1; if(keys.has("KeyD")) dx+=1;
   const l=Math.hypot(dx,dy), moving=l>0;
   if(moving){ dx/=l; dy/=l; }
-  const sprintKey=keys.has("ShiftLeft")||keys.has("ShiftRight");
+  // Modificadores FC 26: CTRL jockey · SPACE dribbling técnico · ALT face up.
+  const jockey=(keys.has("ControlLeft")||keys.has("ControlRight")) && !p.hasBall;
+  const dribble=keys.has("Space") && p.hasBall;
+  const sprintKey=(keys.has("ShiftLeft")||keys.has("ShiftRight")) && !jockey && !dribble;
   p.sprinting = sprintKey && p.stamina>0 && moving;
   let sp=p.effectiveStat("speed")*SPEED_TO_PIXELS;
   if(p.sprinting) sp*=SPRINT_MULT;
-  // Inercia también para el usuario (un poco más ágil que la IA).
-  applyMove(p,{x:dx*sp,y:dy*sp},dt,1050);
+  if(jockey) sp*=0.55;
+  if(dribble) sp*=0.65;
+  // Perfil de aceleración: arranque con micro-inercia; el sprint reduce la
+  // capacidad de giro; SPACE frena en seco para giros cerrados.
+  let accel=1050;
+  if(p.sprinting) accel=680;
+  if(dribble) accel=1600;
+  if(!moving) accel = dribble ? 3000 : 1600;
+  applyMove(p,{x:dx*sp,y:dy*sp},dt,accel);
   p.pos.x=clamp(p.pos.x,30,WORLD_W-30);
   p.pos.y=clamp(p.pos.y,30,WORLD_H-30);
+  p.jockeying=jockey;
+  // Orientación: ALT mira a la portería rival; el jockey encara el balón.
+  if(keys.has("AltLeft")) p.facing=norm(sub(match.goalCenterFor(p.side),p.pos));
+  else if(jockey) p.facing=norm(sub(match.ball.pos,p.pos));
+  // Conducción: el sprint empuja el balón por delante; SPACE lo pega al pie.
+  p.carryOffset = p.hasBall ? (p.sprinting?16 : (dribble?6:10)) : 10;
   if(p.sprinting){ p.stamina=Math.max(0,p.stamina-12*dt); if(Math.random()<dt*4) spawnDust(match,p.pos); }
   else if(moving) p.stamina=Math.min(p.maxStamina,p.stamina+4*dt);
   else p.stamina=Math.min(p.maxStamina,p.stamina+9*dt);
+  if(p.skillCooldown>0) p.skillCooldown=Math.max(0,p.skillCooldown-dt);
   if(charge.action) charge.time=Math.min(0.8,charge.time+dt);
 }
 
@@ -1714,6 +1868,44 @@ function drawRadar(m){
   ctx.restore();
 }
 
+/* ---------- Indicadores pixel del esquema de control (paleta existente:
+   amarillo #ffe633, blanco, negro; sin antialiasing ni transparencias) --- */
+// Mira de apuntado: aspa de 5x5 px con contorno negro de 1 px en el punto
+// del césped apuntado. Parpadea 2 frames encendida / 1 apagada, y solo
+// aparece cargando tiro/centro o durante el cambio manual.
+function drawReticle(m){
+  const show = charge.action || (tabHold.active && performance.now()-tabHold.downAt>150);
+  if(!show || m.paused || m.matchOver) return;
+  if(frameCount%3===2) return;
+  const w=mouseWorld();
+  const x=Math.round(w.x), y=Math.round(w.y);
+  ctx.fillStyle="#000000";
+  ctx.fillRect(x-3,y-1,7,3);
+  ctx.fillRect(x-1,y-3,3,7);
+  ctx.fillStyle="#ffe633";
+  ctx.fillRect(x-2,y,5,1);
+  ctx.fillRect(x,y-2,1,5);
+}
+// Cambio manual (TAB mantenido): línea discontinua amarilla de ~24 px hacia
+// el ratón + contorno amarillo de 1 px alrededor del candidato.
+function drawSwitchIndicator(m){
+  if(!tabHold.active || performance.now()-tabHold.downAt<=150 || m.paused || m.matchOver) return;
+  const u=m.userControlled;
+  if(!u) return;
+  const dir=norm(sub(mouseWorld(),u.pos));
+  for(let i=6;i<=26;i+=5){
+    const x=Math.round(u.pos.x+dir.x*i), y=Math.round(u.pos.y+dir.y*i);
+    ctx.fillStyle="#000000"; ctx.fillRect(x-2,y-2,4,4);
+    ctx.fillStyle="#ffe633"; ctx.fillRect(x-1,y-1,2,2);
+  }
+  const cand=manualSwitchCandidate(m);
+  if(cand){
+    const cx2=Math.round(cand.pos.x), cy2=Math.round(cand.pos.y);
+    ctx.strokeStyle="#ffe633"; ctx.lineWidth=1;
+    ctx.strokeRect(cx2-8.5,cy2-20.5,17,32);
+  }
+}
+
 const hudScore=document.getElementById("hud-score");
 const hudClock=document.getElementById("hud-clock");
 const hudTactic=document.getElementById("hud-tactic");
@@ -1757,17 +1949,21 @@ function render(){
   ctx.save();
   ctx.translate(-cx,-cy);
   drawFx(m);
-  // Indicador del receptor del pase al pie (asistencia estilo FIFA).
+  // Indicador del receptor del pase al pie: subrayado pixel blanco con
+  // contorno negro bajo el compañero apuntado (paleta existente, sin alfa).
   if(m.userControlled && m.userControlled.hasBall && !m.paused){
     const target=pickPassTarget(m.userControlled,m,aimDirection(m.userControlled),false);
     if(target){
-      ctx.strokeStyle="rgba(255,255,255,0.85)"; ctx.lineWidth=1.5;
-      ctx.beginPath(); ctx.ellipse(target.pos.x,target.pos.y+12,9,4,0,0,Math.PI*2); ctx.stroke();
+      const tx=Math.round(target.pos.x), ty=Math.round(target.pos.y);
+      ctx.fillStyle="#000000"; ctx.fillRect(tx-5,ty+13,10,3);
+      ctx.fillStyle="#ffffff"; ctx.fillRect(tx-4,ty+14,8,1);
     }
   }
   const sorted=m.players.filter(p=>!p.sentOff).sort((a,b)=>a.pos.y-b.pos.y);
   for(const p of sorted) drawPlayer(p,m);
   drawBall(m.ball);
+  drawSwitchIndicator(m);
+  drawReticle(m);
   ctx.restore();
   drawRadar(m);
   updateHUD(m);
@@ -1777,6 +1973,7 @@ function render(){
 let lastTime=performance.now();
 function loop(now){
   const dt=Math.min((now-lastTime)/1000,0.05); lastTime=now;
+  frameCount++;
   if(currentMatch){ updateUserMovement(currentMatch,dt); currentMatch.update(dt); render(); }
   requestAnimationFrame(loop);
 }
@@ -1787,47 +1984,76 @@ function getCanvasMouse(e){
   const rect=canvas.getBoundingClientRect();
   return { x:(e.clientX-rect.left)*(canvas.width/rect.width), y:(e.clientY-rect.top)*(canvas.height/rect.height) };
 }
-canvas.addEventListener("mousemove", e=>{ mouseCanvas=getCanvasMouse(e); });
+/* Mapeo FC 26 → teclado y ratón (decisión registrada):
+   RC pase raso/entrada · Q centro/barrida · E filtrado/salida GK ·
+   LC tiro/forcejeo · R+LC colocado · SPACE+LC potente (o vaselina) ·
+   SPACE dribbling · CTRL jockey · ALT face up · TAB cambio (toque=cercano,
+   mantener+ratón=manual) · F/botón central + gesto = filigrana ·
+   ←/→ mentalidad. */
+canvas.addEventListener("mousemove", e=>{
+  mouseCanvas=getCanvasMouse(e);
+  if(skillHeld){ gesture.x+=e.movementX; gesture.y+=e.movementY; tryExecuteSkill(); }
+});
 canvas.addEventListener("contextmenu", e=> e.preventDefault());
 canvas.addEventListener("mousedown", e=>{
+  if(e.button===1){ e.preventDefault(); skillHeld=true; gesture.x=0; gesture.y=0; return; }
   if(!currentMatch || !currentMatch.userControlled || currentMatch.paused || currentMatch.matchOver || currentMatch.stoppage) return;
   const p=currentMatch.userControlled;
   if(e.button===0){
-    // Pase al pie: asistido e instantáneo (decisión registrada).
+    // Disparo (con carga) / carga física (forcejeo) sin balón.
+    if(p.hasBall) startCharge("shot");
+    else attemptPress(currentMatch,p);
+  } else if(e.button===2){
+    // Pase raso al pie / entrada de pie.
     if(p.hasBall) executeGroundPass(currentMatch,p);
     else attemptTackle(currentMatch,p,false);
   }
-  else if(e.button===2){ if(p.hasBall) startCharge("shot"); else attemptTackle(currentMatch,p,true); }
 });
 canvas.addEventListener("mouseup", e=>{
-  if(e.button===2) releaseCharge("shot");
+  if(e.button===0) releaseCharge("shot");
+  else if(e.button===1) skillHeld=false;
 });
-// Pase filtrado con la rueda del ratón (decisión registrada).
-canvas.addEventListener("wheel", e=>{
-  e.preventDefault();
-  if(!currentMatch || currentMatch.paused || currentMatch.matchOver || currentMatch.stoppage) return;
-  const p=currentMatch.userControlled;
-  if(p && p.hasBall) executeThroughPass(currentMatch,p);
-},{passive:false});
 window.addEventListener("keydown", e=>{
   keys.add(e.code);
-  if(e.code==="Space") e.preventDefault();
+  if(e.code==="Space"||e.code==="Tab"||e.code==="AltLeft"||e.code==="ArrowLeft"||e.code==="ArrowRight") e.preventDefault();
   if(!currentMatch || currentMatch.matchOver) return;
-  if(e.code==="KeyE" && !e.repeat && currentMatch.userControlled && currentMatch.userControlled.hasBall && !currentMatch.paused) startCharge("lob");
-  else if(e.code==="KeyQ" && !e.repeat && !currentMatch.paused) currentMatch.switchToNearest();
-  else if(e.code==="Digit1") currentMatch.tacticHome="offensive";
-  else if(e.code==="Digit2") currentMatch.tacticHome="balanced";
-  else if(e.code==="Digit3") currentMatch.tacticHome="defensive";
-  else if(e.code==="Space") currentMatch.gkChargeActive=true;
-  else if(e.code==="Escape" && !e.repeat) currentMatch.paused=!currentMatch.paused;
+  const m=currentMatch, p=m.userControlled;
+  if(e.code==="Escape" && !e.repeat){ m.paused=!m.paused; return; }
+  if(m.paused) return;
+  if(e.code==="Tab" && !e.repeat){ tabHold={active:true,downAt:performance.now()}; }
+  else if(e.code==="KeyQ" && !e.repeat && p && !m.stoppage){
+    // Centro (con carga) con balón / barrida sin balón.
+    if(p.hasBall) startCharge("cross");
+    else attemptTackle(m,p,true);
+  }
+  else if(e.code==="KeyE" && !e.repeat){
+    // Pase filtrado con balón / salida del portero (mantener) sin balón.
+    if(p && p.hasBall && !m.stoppage) executeThroughPass(m,p);
+    else m.gkChargeActive=true;
+  }
+  else if(e.code==="KeyF" && !e.repeat){ skillHeld=true; gesture.x=0; gesture.y=0; }
+  else if(e.code==="ArrowLeft" && !e.repeat) stepMentality(-1);
+  else if(e.code==="ArrowRight" && !e.repeat) stepMentality(1);
 });
 window.addEventListener("keyup", e=>{
   keys.delete(e.code);
-  if(!currentMatch) return;
-  if(e.code==="KeyE") releaseCharge("lob");
-  else if(e.code==="Space") currentMatch.gkChargeActive=false;
+  if(e.code==="Tab"){
+    e.preventDefault();
+    if(currentMatch && !currentMatch.paused && !currentMatch.matchOver && tabHold.active){
+      const held=performance.now()-tabHold.downAt;
+      if(held<200) currentMatch.switchToNearest();
+      else {
+        const cand=manualSwitchCandidate(currentMatch);
+        if(cand) currentMatch.setControlled(cand);
+      }
+    }
+    tabHold={active:false,downAt:0};
+  }
+  else if(e.code==="KeyQ") releaseCharge("cross");
+  else if(e.code==="KeyE"){ if(currentMatch) currentMatch.gkChargeActive=false; }
+  else if(e.code==="KeyF"){ skillHeld=false; gesture.x=0; gesture.y=0; }
 });
-window.addEventListener("blur", ()=> keys.clear());
+window.addEventListener("blur", ()=>{ keys.clear(); skillHeld=false; tabHold={active:false,downAt:0}; });
 
 /* ---------- Menús y flujo ---------- */
 function showScreen(id){
@@ -1835,6 +2061,9 @@ function showScreen(id){
   document.getElementById(id).classList.add("active");
   const isMatch=id==="screen-match";
   canvas.style.display=isMatch?"block":"none";
+  // El cursor del sistema se oculta durante el partido (retro-inmersión);
+  // la mira pixel lo sustituye cuando se apunta.
+  canvas.style.cursor=isMatch?"none":"default";
   document.getElementById("hud").style.display=isMatch?"block":"none";
 }
 function renderTeamList(container,onPick,excludeName){

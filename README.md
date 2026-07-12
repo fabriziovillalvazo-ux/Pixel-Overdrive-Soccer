@@ -56,11 +56,21 @@ diferencia), partes de **2 minutos reales** mostradas como 45', estelas de
 Súper Velocidad/Súper Tiro y sonidos sintetizados (afición dinámica,
 silbato, golpeo).
 
-Controles estilo FIFA (decisión registrada): **clic izquierdo = pase al
-pie** asistido / entrada, **rueda del ratón = pase filtrado** al espacio,
-**clic derecho = tiro** con carga y **margen de fallo del 5%** / **barrida**
-sin balón (deslizamiento real con recuperación), E = centro. Física de
-balón con rodadura + drag y bote con pérdida; movimiento con inercia.
+Controles estilo FC 26 en teclado y ratón (decisión registrada):
+**clic derecho** pase al pie asistido / entrada de pie · **E** pase
+filtrado / salida del portero (mantener) · **clic izquierdo** tiro con
+carga (margen de fallo del 5%) / carga física sin balón · **R+tiro**
+colocado · **ESPACIO+tiro** potente o vaselina contextual si el portero
+está adelantado · **Q** centro / barrida · **ESPACIO** dribbling técnico
+(balón al pie, frenada seca) · **CTRL** jockey · **ALT** face up ·
+**TAB** cambio rápido, o mantener + ratón para cambio manual dirigido ·
+**F o clic central + gesto** filigranas (autopase, drag back, croqueta) ·
+**←/→** mentalidad. Primer toque real: los pases fuertes se escapan salvo
+control orientado con R. El sprint empuja el balón por delante y reduce el
+giro. Indicadores pixel fieles a la estética: mira de apuntado 5×5 con
+parpadeo, línea discontinua amarilla y contorno de 1 px para el cambio
+manual, cursor del sistema oculto en partido. Física de balón con
+rodadura + drag y bote con pérdida; movimiento con inercia.
 
 Reglas estilo fútbol real (decisiones registradas): **falta solo si la
 entrada toca primero al jugador y no al balón** — tocar primero el balón
