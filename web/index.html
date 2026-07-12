@@ -68,7 +68,7 @@ h2{font-size:1.15rem;letter-spacing:1px;margin:0 0 4px;opacity:.9;}
     <h1>PIXEL OVERDRIVE SOCCER</h1>
     <button class="btn" id="btn-play">JUGAR</button>
     <button class="btn" id="btn-time">HORA DEL PARTIDO: DÍA</button>
-    <div class="hint">WASD moverse · Ratón apuntar · Clic izq pase · Clic der tiro · E centro<br>Shift sprint · Q cambiar jugador · Espacio achique del portero · 1/2/3 táctica · Esc pausa</div>
+    <div class="hint">WASD moverse · Ratón apuntar · Clic izq pase al pie · Rueda pase filtrado · Clic der tiro (mantener: potencia) · E centro<br>Shift sprint · Q cambiar jugador · Espacio achique del portero · 1/2/3 táctica · Esc pausa</div>
   </div>
 
   <div class="screen" id="screen-play-choice">
@@ -123,7 +123,9 @@ const FIELD_HALF_LENGTH=(FIELD_RIGHT-FIELD_LEFT)/2, FIELD_HALF_WIDTH=(FIELD_BOTT
 const GOAL_HALF_HEIGHT=55, AREA_DEPTH=160, AREA_HALF=190, BOX_DEPTH=60, BOX_HALF=95, SPOT_DIST=110, CIRCLE_R=90;
 // Ritmo (decisión registrada): base técnica, sprint explosivo.
 const SPEED_TO_PIXELS=1.5, SPRINT_MULT=1.6;
-const BALL_FRICTION=260, KICK_POWER=4.6;
+// Física del balón estilo FIFA: resistencia de rodadura constante + drag
+// proporcional a la velocidad (frena más cuanto más rápido va).
+const BALL_ROLL=85, BALL_DRAG=0.55, BALL_AIR_DRAG=0.18;
 const HALF_DURATION=120; // 2 min reales por parte; el reloj muestra 45'.
 
 /* ---------- Utilidades ---------- */
@@ -322,7 +324,7 @@ class League{
 
 /* ---------- Audio: afición + silbato + golpeo (síntesis, sin assets) ---------- */
 class CrowdAudio{
-  constructor(){ this.ctx=null; this.gain=null; this.baseLevel=0.05; }
+  constructor(){ this.ctx=null; this.gain=null; this.baseLevel=0.05; this.cheerUntil=0; }
   init(){
     if(this.ctx) return;
     const Ctx=window.AudioContext||window.webkitAudioContext;
@@ -343,10 +345,18 @@ class CrowdAudio{
   cheer(intensity){
     if(!this.gain) return;
     const now=this.ctx.currentTime;
+    this.cheerUntil=now+1.25;
     this.gain.gain.cancelScheduledValues(now);
     this.gain.gain.setValueAtTime(this.gain.gain.value, now);
     this.gain.gain.linearRampToValueAtTime(this.baseLevel+intensity*0.5, now+0.05);
     this.gain.gain.linearRampToValueAtTime(this.baseLevel, now+1.2);
+  }
+  // Murmullo dinámico estilo retransmisión: sube cuando el juego se acerca
+  // a las áreas. No pisa los gritos (cheer) mientras están sonando.
+  update(excitement){
+    if(!this.gain || this.ctx.currentTime<this.cheerUntil) return;
+    const target=this.baseLevel*(0.8+excitement*1.6);
+    this.gain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.6);
   }
   beep(freq,dur,vol,type){
     if(!this.ctx) return;
@@ -390,28 +400,36 @@ class BallEntity{
       this.vel={x:0,y:0}; this.height=0; this.heightVel=0; return;
     }
     this.repossessCooldown=Math.max(0,this.repossessCooldown-dt);
-    if(this.height<=0){
-      const speed=vlen(this.vel);
-      const damp=Math.max(0,speed-BALL_FRICTION*dt);
-      if(speed>0){ this.vel.x*=damp/speed; this.vel.y*=damp/speed; }
+    const speed=vlen(this.vel);
+    if(speed>0){
+      // En el suelo: rodadura + drag; en el aire solo drag aerodinámico.
+      const dec = this.height<=0 ? (BALL_ROLL+BALL_DRAG*speed)*dt : (BALL_AIR_DRAG*speed)*dt;
+      const ns=Math.max(0,speed-dec);
+      this.vel.x*=ns/speed; this.vel.y*=ns/speed;
     }
     if(this.height>0||this.heightVel!==0){
       this.heightVel-=480*dt; this.height+=this.heightVel*dt;
-      if(this.height<=0){ this.height=0; this.heightVel=-this.heightVel*0.45; if(Math.abs(this.heightVel)<30) this.heightVel=0; }
+      if(this.height<=0){
+        this.height=0; this.heightVel=-this.heightVel*0.45;
+        // El bote también roba velocidad horizontal.
+        this.vel.x*=0.82; this.vel.y*=0.82;
+        if(Math.abs(this.heightVel)<30) this.heightVel=0;
+      }
     }
     this.pos.x+=this.vel.x*dt; this.pos.y+=this.vel.y*dt;
     this.spin+=vlen(this.vel)*dt*0.05;
   }
   attach(player){ this.release(); this.carrier=player; player.hasBall=true; this.lastTouchSide=player.side; this.vel={x:0,y:0}; this.height=0; this.heightVel=0; }
   release(){ if(this.carrier) this.carrier.hasBall=false; this.carrier=null; }
-  kick(dir, power, side, loft, kicker, isShot){
+  // Golpeo con velocidad explícita en px/s (la potencia ya viene calculada).
+  kickV(dir, speed, side, loft, kicker, isShot){
     this.release();
     const d=norm(dir);
-    this.vel={x:d.x*power*KICK_POWER, y:d.y*power*KICK_POWER};
+    this.vel={x:d.x*speed, y:d.y*speed};
     this.heightVel=loft||0; this.lastTouchSide=side; this.lastKicker=kicker||null;
     this.lastKickWasShot=!!isShot;
     this.repossessCooldown=kicker?0.3:0;
-    crowd.kick(Math.min(1,power/110));
+    crowd.kick(clamp(speed/700,0.1,1));
   }
   canBeTakenBy(player){
     if(this.height>12) return false;
@@ -426,10 +444,22 @@ function predictBall(ball,t){
   const step=0.1;
   for(let i=0;i<Math.ceil(t/step);i++){
     const sp=Math.hypot(vx,vy); if(sp<1) break;
-    const ns=Math.max(0,sp-BALL_FRICTION*step);
+    const ns=Math.max(0,sp-(BALL_ROLL+BALL_DRAG*sp)*step);
     vx*=ns/sp; vy*=ns/sp; px+=vx*step; py+=vy*step;
   }
   return {x:px,y:py};
+}
+// Resuelve la velocidad inicial para que el balón recorra `distance` y
+// llegue rodando a `arriveSpeed` (pase al pie medido, estilo FIFA).
+function passSolveSpeed(distance, arriveSpeed){
+  let lo=arriveSpeed, hi=950;
+  for(let i=0;i<9;i++){
+    const mid=(lo+hi)/2;
+    let v=mid,d=0,t=0;
+    while(t<4 && v>arriveSpeed){ d+=v*0.045; v-=(BALL_ROLL+BALL_DRAG*v)*0.045; t+=0.045; }
+    if(d<distance) lo=mid; else hi=mid;
+  }
+  return clamp((lo+hi)/2, 130, 950);
 }
 
 /* ---------- Jugadores ---------- */
@@ -554,6 +584,8 @@ class Match{
   }
   showMessage(text, durationMs=2000){ this.message=text; this.messageUntil=performance.now()+durationMs; }
   doRestart(kind, side, pos){
+    // "Ooooh" de la afición cuando un tiro se marcha fuera.
+    if(kind==="goalkick" && this.ball.lastKickWasShot) this.crowd.cheer(0.35);
     const spot=restartSpot(kind,pos);
     this.ball.stopAt(spot);
     const list = side==="home"?this.homePlayers:this.awayPlayers;
@@ -643,6 +675,8 @@ class Match{
     if(!this.playing || this.paused || this.matchOver){ return; }
     this.elapsed+=dt;
     this.coachTimer+=dt; if(this.coachTimer>=5){ this.coachTimer=0; this.updateAICoach(); }
+    // La afición se anima cuando el balón entra en los tercios finales.
+    this.crowd.update(Math.abs(this.ball.pos.x-FIELD_CX)>FIELD_HALF_LENGTH*0.45 ? 1 : 0.25);
     this.assignTimer-=dt; if(this.assignTimer<=0){ this.assignTimer=0.15; this.assignRoles(); }
     if(this.elapsed>=this.halfDuration){ this.endHalf(); return; }
     if(this.homeGK && !this.homeGK.sentOff) this.homeGK.gkCharging=this.gkChargeActive;
@@ -737,19 +771,90 @@ function attemptTackle(match, tackler, isSlide){
   if(result==="red"){ match.showMessage("¡TARJETA ROJA!"); match.crowd.cheer(0.4); match.sendOff(tackler); match.giveBall(carrier); }
 }
 
-function executePass(match, player, dir, lofted, power, receiver){
-  if(match.ball.carrier!==player) return;
-  const stat=player.effectiveStat("passing");
-  // Error de pase según stat: los malos pasadores desvían el balón.
-  const jitter=gaussianRandom()*(0.14*(1-stat/140));
-  match.ball.kick(rotate(dir,jitter), stat*(0.55+0.5*power), player.side, lofted ? (170+190*power) : 0, player, false);
-  match.intendedReceiver=receiver||null;
-}
+/* ---------- Acciones con balón (esquema FIFA) ---------- */
+// Tiro (clic derecho): NUNCA es 100% exacto. Siempre hay una pequeña
+// dispersión por técnica, y un 5% de las veces el tiro sale claramente
+// desviado (decisión registrada: margen de fallo del 5%).
 function executeShot(match, player, dir, power){
   if(match.ball.carrier!==player) return;
   const stat=player.effectiveStat("shotPower");
-  match.ball.kick(dir, stat*(0.6+0.5*power), player.side, 40*power, player, true);
+  let speed=(300+stat*4.2)*(0.55+0.45*power);
+  const baseSigma=0.022+0.02*(1-player.effectiveStat("technique")/120);
+  let ang=gaussianRandom()*baseSigma;
+  if(Math.random()<0.05){
+    ang += (Math.random()<0.5?-1:1)*(0.13+Math.random()*0.12);
+    speed*=0.85;
+  }
+  match.ball.kickV(rotate(dir,ang), clamp(speed,200,880), player.side, 45*power, player, true);
   match.intendedReceiver=null;
+}
+// Centro / pase elevado manual (tecla E, con carga).
+function executeLob(match, player, dir, power){
+  if(match.ball.carrier!==player) return;
+  const stat=player.effectiveStat("passing");
+  const jitter=gaussianRandom()*0.05*(1-stat/160);
+  match.ball.kickV(rotate(dir,jitter), (240+stat*2.6)*(0.5+0.5*power), player.side, 180+200*power, player, false);
+  match.intendedReceiver=null;
+}
+// Selección automática del receptor: el compañero mejor alineado con el
+// cursor dentro de un cono (~56°), favoreciendo hombres abiertos.
+function pickPassTarget(player, match, aimDir, through){
+  let best=null, bestScore=-Infinity;
+  for(const mate of match.teamOf(player)){
+    if(mate===player||mate.sentOff) continue;
+    const to=sub(mate.pos,player.pos), d=vlen(to);
+    if(d<25||d>520) continue;
+    const ang=Math.acos(clamp(dot(norm(to),aimDir),-1,1));
+    if(ang>Math.PI/3.2) continue;
+    let score = -ang*220 - Math.abs(d-(through?260:170))*0.25;
+    score += nearestOppTo(mate.pos,match,player.side).d*0.4;
+    if(through && mate.role==="DEL") score+=50;
+    if(score>bestScore){ bestScore=score; best=mate; }
+  }
+  return best;
+}
+// Pase asistido: al pie (llega frenándose al receptor) o filtrado (al
+// espacio por delante de su carrera, más tenso).
+function assistedPassTo(match, player, mate, through){
+  let lead;
+  if(through){
+    const toGoal=norm(sub(match.goalCenterFor(player.side),mate.pos));
+    lead=add(mate.pos, add(mul(toGoal,120), mul(mate.vel,0.5)));
+  } else {
+    lead=add(mate.pos, mul(mate.vel,0.4));
+  }
+  lead.x=clamp(lead.x,FIELD_LEFT+15,FIELD_RIGHT-15);
+  lead.y=clamp(lead.y,FIELD_TOP+15,FIELD_BOTTOM-15);
+  const d=dist(player.pos,lead);
+  const speed=passSolveSpeed(d, through?150:70);
+  const stat=player.effectiveStat("passing");
+  const jitter=gaussianRandom()*(0.10*(1-stat/150));
+  match.ball.kickV(rotate(sub(lead,player.pos),jitter), speed, player.side, 0, player, false);
+  match.intendedReceiver=mate;
+}
+// Pase al pie (clic izquierdo): automático hacia el compañero apuntado.
+function executeGroundPass(match, player){
+  if(match.ball.carrier!==player) return;
+  const aim=aimDirection(player);
+  const mate=pickPassTarget(player,match,aim,false);
+  if(mate) assistedPassTo(match,player,mate,false);
+  else match.ball.kickV(aim, 430, player.side, 0, player, false);
+}
+// Pase filtrado (rueda del ratón): al espacio, para el desmarque.
+function executeThroughPass(match, player){
+  if(match.ball.carrier!==player) return;
+  const aim=aimDirection(player);
+  const mate=pickPassTarget(player,match,aim,true);
+  if(mate) assistedPassTo(match,player,mate,true);
+  else match.ball.kickV(aim, 520, player.side, 0, player, false);
+}
+// Despeje largo del portero.
+function clearBall(match, player){
+  const mate=match.mostAdvanced(player.side);
+  const dir= mate ? sub(add(mate.pos,mul(mate.vel,0.4)),player.pos)
+                  : {x:match.attackDirection(player.side),y:0};
+  match.ball.kickV(rotate(dir,gaussianRandom()*0.06), 560, player.side, 280, player, false);
+  match.intendedReceiver=mate||null;
 }
 
 /* ============================================================
@@ -768,30 +873,41 @@ function laneRisk(from,to,m,side){
   for(const o of opps){ if(o.sentOff) continue; if(distToSegment(o.pos,from,to)<24) risk++; }
   return risk;
 }
+// Movimiento con inercia (estilo FIFA): la velocidad se acerca a la deseada
+// con una aceleración finita, así arrancar, girar y frenar tienen peso.
+function approach(cur,target,delta){
+  if(cur<target) return Math.min(target,cur+delta);
+  return Math.max(target,cur-delta);
+}
+function applyMove(p,desired,dt,accel){
+  p.vel.x=approach(p.vel.x,desired.x,accel*dt);
+  p.vel.y=approach(p.vel.y,desired.y,accel*dt);
+  p.pos.x+=p.vel.x*dt; p.pos.y+=p.vel.y*dt;
+  const sp=vlen(p.vel);
+  if(sp>25) p.facing=norm(p.vel);
+  p.moving=sp>20;
+  p.animTime += p.moving ? dt*(sp/85) : dt*0.8;
+}
 function moveActor(p,target,dt,opts){
   opts=opts||{};
   const d=sub(target,p.pos), l=vlen(d);
-  if(l<5){
-    p.vel={x:0,y:0}; p.moving=false; p.sprinting=false;
-    p.stamina=Math.min(p.maxStamina,p.stamina+8*dt);
-    p.animTime+=dt*0.8;
-    return;
-  }
-  p.moving=true;
-  let sp=p.effectiveStat("speed")*SPEED_TO_PIXELS*(opts.speedMult||1);
-  if(opts.sprint && p.stamina>12){
-    sp*=SPRINT_MULT; p.sprinting=true;
-    p.stamina=Math.max(0,p.stamina-10*dt);
-    if(Math.random()<dt*3) spawnDust(currentMatch,p.pos);
+  let desired={x:0,y:0};
+  if(l>=5){
+    let sp=p.effectiveStat("speed")*SPEED_TO_PIXELS*(opts.speedMult||1);
+    if(opts.sprint && p.stamina>12){
+      sp*=SPRINT_MULT; p.sprinting=true;
+      p.stamina=Math.max(0,p.stamina-10*dt);
+      if(Math.random()<dt*2) spawnDust(currentMatch,p.pos);
+    } else {
+      p.sprinting=false;
+      p.stamina=Math.min(p.maxStamina,p.stamina+3.5*dt);
+    }
+    desired={x:d.x/l*sp, y:d.y/l*sp};
   } else {
     p.sprinting=false;
-    p.stamina=Math.min(p.maxStamina,p.stamina+3.5*dt);
+    p.stamina=Math.min(p.maxStamina,p.stamina+8*dt);
   }
-  const nx=d.x/l, ny=d.y/l;
-  p.vel={x:nx*sp,y:ny*sp};
-  p.pos.x+=p.vel.x*dt; p.pos.y+=p.vel.y*dt;
-  p.facing={x:nx,y:ny};
-  p.animTime+=dt*(sp/85);
+  applyMove(p,desired,dt,900);
 }
 function updateAI(p,dt,m){
   p.aiTimer-=dt;
@@ -909,10 +1025,7 @@ function aiAttack(p,dt,m){
   const goal=m.goalCenterFor(p.side);
   const dir=m.attackDirection(p.side);
   if(p.isGK){
-    if(p.actionCooldown<=0){
-      const mate=bestPassMate(p,m,goal,true);
-      if(mate){ executePass(m,p,sub(add(mate.pos,mul(mate.vel,0.35)),p.pos),true,1.0,mate); p.actionCooldown=1.0; return; }
-    }
+    if(p.actionCooldown<=0){ clearBall(m,p); p.actionCooldown=1.0; return; }
     moveActor(p,p.formationSpot,dt,{});
     return;
   }
@@ -922,10 +1035,10 @@ function aiAttack(p,dt,m){
     // Tiro: cerca y con ángulo razonable.
     const angleOk = Math.abs(p.pos.y-FIELD_CY) < Math.abs(p.pos.x-goal.x)*1.15+60;
     if(distGoal<300 && angleOk){
+      // El error del tiro (dispersión + 5% de fallo) lo aplica executeShot,
+      // igual para la IA que para el usuario. Presión = tiro más precipitado.
       const aimY=FIELD_CY+(Math.random()*2-1)*GOAL_HALF_HEIGHT*0.65;
-      let sdir=norm(sub({x:goal.x,y:aimY},p.pos));
-      const sigma=0.12*(1-p.effectiveStat("technique")/150)+(pressD<45?0.05:0);
-      sdir=rotate(sdir,gaussianRandom()*sigma);
+      const sdir=rotate(norm(sub({x:goal.x,y:aimY},p.pos)), pressD<45?gaussianRandom()*0.045:0);
       executeShot(m,p,sdir,0.75+Math.random()*0.25);
       p.actionCooldown=0.8;
       return;
@@ -934,10 +1047,11 @@ function aiAttack(p,dt,m){
     if(pressD<55 || Math.random()<dt*30*0.02){
       const mate=bestPassMate(p,m,goal,false);
       if(mate){
-        const lead=add(mate.pos,mul(mate.vel,0.35));
-        const d=dist(p.pos,lead);
-        const risk=laneRisk(p.pos,lead,m,p.side);
-        executePass(m,p,sub(lead,p.pos), risk>0||d>280, clamp(d/300,0.45,1), mate);
+        // Filtrado si el receptor es un punta lanzado y con espacio.
+        const through = mate.role==="DEL"
+            && (dist(p.pos,goal)-dist(mate.pos,goal))>110
+            && nearestOppTo(mate.pos,m,p.side).d>55;
+        assistedPassTo(m,p,mate,through);
         p.actionCooldown=0.7;
         return;
       }
@@ -1029,8 +1143,7 @@ function releaseCharge(action){
   const p=currentMatch.userControlled;
   if(!p || !p.hasBall) return;
   const dir=aimDirection(p);
-  if(action==="pass") executePass(currentMatch,p,dir,false,power,null);
-  else if(action==="lob") executePass(currentMatch,p,dir,true,power,null);
+  if(action==="lob") executeLob(currentMatch,p,dir,power);
   else if(action==="shot") executeShot(currentMatch,p,dir,power);
 }
 function aimDirection(p){
@@ -1050,12 +1163,10 @@ function updateUserMovement(match,dt){
   p.sprinting = sprintKey && p.stamina>0 && moving;
   let sp=p.effectiveStat("speed")*SPEED_TO_PIXELS;
   if(p.sprinting) sp*=SPRINT_MULT;
-  p.vel={x:dx*sp,y:dy*sp};
-  p.pos.x=clamp(p.pos.x+p.vel.x*dt, 30, WORLD_W-30);
-  p.pos.y=clamp(p.pos.y+p.vel.y*dt, 30, WORLD_H-30);
-  p.moving=moving;
-  if(moving){ p.facing={x:dx,y:dy}; p.animTime+=dt*(sp/85); }
-  else p.animTime+=dt*0.8;
+  // Inercia también para el usuario (un poco más ágil que la IA).
+  applyMove(p,{x:dx*sp,y:dy*sp},dt,1050);
+  p.pos.x=clamp(p.pos.x,30,WORLD_W-30);
+  p.pos.y=clamp(p.pos.y,30,WORLD_H-30);
   if(p.sprinting){ p.stamina=Math.max(0,p.stamina-12*dt); if(Math.random()<dt*4) spawnDust(match,p.pos); }
   else if(moving) p.stamina=Math.min(p.maxStamina,p.stamina+4*dt);
   else p.stamina=Math.min(p.maxStamina,p.stamina+9*dt);
@@ -1323,6 +1434,14 @@ function render(){
   ctx.save();
   ctx.translate(-cx,-cy);
   drawFx(m);
+  // Indicador del receptor del pase al pie (asistencia estilo FIFA).
+  if(m.userControlled && m.userControlled.hasBall && !m.paused){
+    const target=pickPassTarget(m.userControlled,m,aimDirection(m.userControlled),false);
+    if(target){
+      ctx.strokeStyle="rgba(255,255,255,0.85)"; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.ellipse(target.pos.x,target.pos.y+12,9,4,0,0,Math.PI*2); ctx.stroke();
+    }
+  }
   const sorted=m.players.filter(p=>!p.sentOff).sort((a,b)=>a.pos.y-b.pos.y);
   for(const p of sorted) drawPlayer(p,m);
   drawBall(m.ball);
@@ -1350,12 +1469,23 @@ canvas.addEventListener("contextmenu", e=> e.preventDefault());
 canvas.addEventListener("mousedown", e=>{
   if(!currentMatch || !currentMatch.userControlled || currentMatch.paused || currentMatch.matchOver) return;
   const p=currentMatch.userControlled;
-  if(e.button===0){ if(p.hasBall) startCharge("pass"); else attemptTackle(currentMatch,p,false); }
+  if(e.button===0){
+    // Pase al pie: asistido e instantáneo (decisión registrada).
+    if(p.hasBall) executeGroundPass(currentMatch,p);
+    else attemptTackle(currentMatch,p,false);
+  }
   else if(e.button===2){ if(p.hasBall) startCharge("shot"); else attemptTackle(currentMatch,p,true); }
 });
 canvas.addEventListener("mouseup", e=>{
-  if(e.button===0) releaseCharge("pass"); else if(e.button===2) releaseCharge("shot");
+  if(e.button===2) releaseCharge("shot");
 });
+// Pase filtrado con la rueda del ratón (decisión registrada).
+canvas.addEventListener("wheel", e=>{
+  e.preventDefault();
+  if(!currentMatch || currentMatch.paused || currentMatch.matchOver) return;
+  const p=currentMatch.userControlled;
+  if(p && p.hasBall) executeThroughPass(currentMatch,p);
+},{passive:false});
 window.addEventListener("keydown", e=>{
   keys.add(e.code);
   if(e.code==="Space") e.preventDefault();

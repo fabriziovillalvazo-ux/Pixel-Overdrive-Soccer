@@ -53,10 +53,19 @@ tonos de piel variados, contorno pixel), IA por roles (presión, cobertura,
 marcajes, desmarques sin offside, pases al espacio, portero con paradas y
 entrenador virtual), **menú de pausa con abandono** (derrota por 3 goles de
 diferencia), partes de **2 minutos reales** mostradas como 45', estelas de
-Súper Velocidad/Súper Tiro y sonidos sintetizados (afición, silbato,
-golpeo). Pendiente aún: libres directos/penaltis con pausa y sprites
-finales de Aseprite. El proyecto Godot sigue siendo la versión de
-referencia para producción.
+Súper Velocidad/Súper Tiro y sonidos sintetizados (afición dinámica,
+silbato, golpeo).
+
+Controles estilo FIFA (decisión registrada): **clic izquierdo = pase al
+pie** asistido (elige al compañero apuntado y el balón llega frenándose a
+sus pies), **rueda del ratón = pase filtrado** al espacio, **clic derecho =
+tiro** con carga y **margen de fallo del 5%** (dispersión leve siempre +
+5% de tiros claramente desviados), E = centro. Física de balón con
+rodadura + drag y bote con pérdida; movimiento de jugadores con inercia.
+Solo las 8 estrellas (una por equipo) tienen Trait; el resto de
+jugadores no tiene superpoderes. Pendiente aún: libres directos/penaltis
+con pausa y sprites finales de Aseprite. El proyecto Godot sigue siendo la
+versión de referencia para producción.
 
 ## Estructura
 
