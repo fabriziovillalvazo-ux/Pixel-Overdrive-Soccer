@@ -57,15 +57,22 @@ Súper Velocidad/Súper Tiro y sonidos sintetizados (afición dinámica,
 silbato, golpeo).
 
 Controles estilo FIFA (decisión registrada): **clic izquierdo = pase al
-pie** asistido (elige al compañero apuntado y el balón llega frenándose a
-sus pies), **rueda del ratón = pase filtrado** al espacio, **clic derecho =
-tiro** con carga y **margen de fallo del 5%** (dispersión leve siempre +
-5% de tiros claramente desviados), E = centro. Física de balón con
-rodadura + drag y bote con pérdida; movimiento de jugadores con inercia.
-Solo las 8 estrellas (una por equipo) tienen Trait; el resto de
-jugadores no tiene superpoderes. Pendiente aún: libres directos/penaltis
-con pausa y sprites finales de Aseprite. El proyecto Godot sigue siendo la
-versión de referencia para producción.
+pie** asistido / entrada, **rueda del ratón = pase filtrado** al espacio,
+**clic derecho = tiro** con carga y **margen de fallo del 5%** / **barrida**
+sin balón (deslizamiento real con recuperación), E = centro. Física de
+balón con rodadura + drag y bote con pérdida; movimiento con inercia.
+
+Reglas estilo fútbol real (decisiones registradas): **falta solo si la
+entrada toca primero al jugador y no al balón** — tocar primero el balón
+es robo limpio siempre; tras robar hay **0.3 s de invulnerabilidad**. Las
+faltas se cobran (libre directo con rivales a 90 px, o **penalti** si fue
+dentro del área) con abucheos de la grada y rótulos de retransmisión con
+pausa de 2 s: INICIO DEL PARTIDO · FINAL DEL PRIMER TIEMPO · SEGUNDO
+TIEMPO · FIN DEL PARTIDO · FALTA · ¡GOOOL! · ¡PENALTI! Audio sintetizado
+por capas (murmullo dinámico, rugidos, abucheos con trémolo, silbato con
+trino, golpeo seco). Estadio con vallas publicitarias ficticias, gradas
+por niveles y banderines. Solo las 8 estrellas (una por equipo) tienen
+Trait. El proyecto Godot sigue siendo la versión de referencia.
 
 ## Estructura
 
